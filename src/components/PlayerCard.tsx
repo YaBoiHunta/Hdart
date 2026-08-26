@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import { turnAverage } from '../game/gameReducer'
+import { isCountdownPlayer, isProgressionPlayer } from '../game/types'
+import type { Mode, Player, ThrowRecord } from '../game/types'
 
-export default function PlayerCard({ player, isActive, turnThrows }) {
+interface PlayerCardProps {
+  player: Player
+  mode: Mode
+  isActive: boolean
+  turnThrows: ThrowRecord[]
+}
+
+export default function PlayerCard({ player, mode, isActive, turnThrows }: PlayerCardProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const average = turnAverage(player)
   const hasHistory = player.turnHistory.length > 0
@@ -14,7 +23,7 @@ export default function PlayerCard({ player, isActive, turnThrows }) {
         <span className="player-average">
           Avg {average === null ? '—' : average.toFixed(1)}
         </span>
-        <span className="player-score">{player.score}</span>
+        {renderStatus(mode, player)}
       </div>
 
       {isActive && (
@@ -74,7 +83,22 @@ export default function PlayerCard({ player, isActive, turnThrows }) {
   )
 }
 
-function formatThrow(t) {
+function renderStatus(mode: Mode, player: Player) {
+  if (mode.family === 'progression' && isProgressionPlayer(player)) {
+    return (
+      <span className="player-score player-target">
+        <span className="player-target-label">Target</span>
+        {mode.sequence[player.targetIndex]}
+      </span>
+    )
+  }
+  if (isCountdownPlayer(player)) {
+    return <span className="player-score">{player.score}</span>
+  }
+  return null
+}
+
+function formatThrow(t: ThrowRecord) {
   if (t.segment === 'OUT') return 'OUT'
   if (t.multiplier === 2) return `D${t.segment}`
   if (t.multiplier === 3) return `T${t.segment}`

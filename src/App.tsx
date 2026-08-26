@@ -2,24 +2,26 @@ import { useEffect, useRef, useState, useReducer } from 'react'
 import { gameReducer, initialState, PHASES, ensurePlayerIdCounterAbove } from './game/gameReducer'
 import { loadPersistedState, savePersistedState } from './game/persistence'
 import { buildGameSummary, appendGameResult } from './game/history'
+import type { GameState } from './game/types'
 import ModeSelectScreen from './screens/ModeSelectScreen'
 import PlayerSetupScreen from './screens/PlayerSetupScreen'
 import GameBoardScreen from './screens/GameBoardScreen'
 import HistoryScreen from './screens/HistoryScreen'
 import './App.css'
 
-const VALID_PHASES = new Set(Object.values(PHASES))
+const VALID_PHASES = new Set<string>(Object.values(PHASES))
 
-function isUsableState(saved) {
+function isUsableState(saved: unknown): saved is GameState {
+  if (!saved || typeof saved !== 'object') return false
+  const candidate = saved as { phase?: unknown; players?: unknown }
   return (
-    saved &&
-    typeof saved === 'object' &&
-    VALID_PHASES.has(saved.phase) &&
-    Array.isArray(saved.players)
+    typeof candidate.phase === 'string' &&
+    VALID_PHASES.has(candidate.phase) &&
+    Array.isArray(candidate.players)
   )
 }
 
-function initState() {
+function initState(): GameState {
   const saved = loadPersistedState()
   if (!isUsableState(saved)) return initialState
   ensurePlayerIdCounterAbove(saved.players)
@@ -29,7 +31,7 @@ function initState() {
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState, initState)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const lastRecordedWinnerRef = useRef(null)
+  const lastRecordedWinnerRef = useRef<number | null>(null)
 
   useEffect(() => {
     savePersistedState(state)
@@ -44,6 +46,7 @@ export default function App() {
     }
     // Only the moment winnerId changes matters here; state is read from the
     // same render's closure, which is already up to date at that point.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [state.winnerId])
 
   if (historyOpen) {

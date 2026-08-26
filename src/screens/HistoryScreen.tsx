@@ -1,18 +1,22 @@
 import { loadHistory } from '../game/history'
 
-function formatDate(isoString) {
+interface HistoryScreenProps {
+  onBack: () => void
+}
+
+function formatDate(isoString: string) {
   return new Date(isoString).toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
 }
 
-export default function HistoryScreen({ onBack }) {
+export default function HistoryScreen({ onBack }: HistoryScreenProps) {
   const history = loadHistory()
 
   return (
     <div className="screen history-screen">
-      <div className="history-header">
+      <div className="screen-header">
         <button className="back-btn" onClick={onBack}>
           ← Back
         </button>

@@ -1,6 +1,13 @@
+import type { Dispatch } from 'react'
 import { GAME_MODES } from '../game/modes'
+import type { Action } from '../game/types'
 
-export default function ModeSelectScreen({ dispatch, onShowHistory }) {
+interface ModeSelectScreenProps {
+  dispatch: Dispatch<Action>
+  onShowHistory: () => void
+}
+
+export default function ModeSelectScreen({ dispatch, onShowHistory }: ModeSelectScreenProps) {
   return (
     <div className="screen mode-select">
       <h1>Hunter Darts</h1>

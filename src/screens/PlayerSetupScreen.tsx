@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useState, type Dispatch, type KeyboardEvent } from 'react'
+import type { Action, GameState } from '../game/types'
 
-export default function PlayerSetupScreen({ state, dispatch }) {
+interface PlayerSetupScreenProps {
+  state: GameState
+  dispatch: Dispatch<Action>
+}
+
+export default function PlayerSetupScreen({ state, dispatch }: PlayerSetupScreenProps) {
   const [name, setName] = useState('')
 
   function addPlayer() {
@@ -8,13 +14,18 @@ export default function PlayerSetupScreen({ state, dispatch }) {
     setName('')
   }
 
-  function handleKeyDown(e) {
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') addPlayer()
   }
 
   return (
     <div className="screen player-setup">
-      <h1>Players</h1>
+      <div className="screen-header">
+        <button className="back-btn" onClick={() => dispatch({ type: 'BACK_TO_MODE_SELECT' })}>
+          ← Back
+        </button>
+        <h1>Players</h1>
+      </div>
       <p className="subtitle">Mode: {state.modeId}</p>
 
       <div className="player-input-row">

@@ -1,40 +1,55 @@
 import { describe, it, expect } from 'vitest'
-import {
-  gameReducer,
-  initialState,
-  turnAverage,
-  PHASES,
-  ensurePlayerIdCounterAbove,
-} from './gameReducer'
+import { gameReducer, initialState, turnAverage, PHASES, ensurePlayerIdCounterAbove } from './gameReducer'
+import type {
+  Action,
+  CountdownPlayer,
+  GameState,
+  Multiplier,
+  ProgressionPlayer,
+  ThrowSegment,
+} from './types'
 
-function selectMode(state, modeId) {
-  return gameReducer(state, { type: 'SELECT_MODE', modeId })
+type CountdownGameState = Omit<GameState, 'players'> & { players: CountdownPlayer[] }
+type ProgressionGameState = Omit<GameState, 'players'> & { players: ProgressionPlayer[] }
+
+function dispatch<T extends GameState>(state: T, action: Action): T {
+  return gameReducer(state, action) as T
 }
 
-function addPlayer(state, name) {
-  return gameReducer(state, { type: 'ADD_PLAYER', name })
+function selectMode(state: GameState, modeId: string): GameState {
+  return dispatch(state, { type: 'SELECT_MODE', modeId })
 }
 
-function startGame(state) {
-  return gameReducer(state, { type: 'START_GAME' })
+function addPlayer<T extends GameState>(state: T, name: string): T {
+  return dispatch(state, { type: 'ADD_PLAYER', name })
 }
 
-function throwDart(state, segment) {
-  return gameReducer(state, { type: 'THROW_DART', segment })
+function startGame(state: GameState): GameState {
+  return dispatch(state, { type: 'START_GAME' })
 }
 
-function setMultiplier(state, multiplier) {
-  return gameReducer(state, { type: 'SET_MULTIPLIER', multiplier })
+function throwDart<T extends GameState>(state: T, segment: ThrowSegment): T {
+  return dispatch(state, { type: 'THROW_DART', segment })
 }
 
-function undo(state) {
-  return gameReducer(state, { type: 'UNDO' })
+function setMultiplier<T extends GameState>(state: T, multiplier: Multiplier): T {
+  return dispatch(state, { type: 'SET_MULTIPLIER', multiplier })
 }
 
-function newGameAt501WithPlayers(...names) {
+function undo<T extends GameState>(state: T): T {
+  return dispatch(state, { type: 'UNDO' })
+}
+
+function newGameAt501WithPlayers(...names: string[]): CountdownGameState {
   let state = selectMode(initialState, '501')
   for (const name of names) state = addPlayer(state, name)
-  return startGame(state)
+  return startGame(state) as CountdownGameState
+}
+
+function newAroundTheWorldGameWithPlayers(...names: string[]): ProgressionGameState {
+  let state = selectMode(initialState, 'around-the-world')
+  for (const name of names) state = addPlayer(state, name)
+  return startGame(state) as ProgressionGameState
 }
 
 describe('setup', () => {
@@ -62,9 +77,29 @@ describe('setup', () => {
     state = addPlayer(state, 'Hunter')
     state = addPlayer(state, 'Friend')
     const [hunter] = state.players
-    state = gameReducer(state, { type: 'REMOVE_PLAYER', playerId: hunter.id })
+    state = dispatch(state, { type: 'REMOVE_PLAYER', playerId: hunter.id })
     expect(state.players).toHaveLength(1)
     expect(state.players[0].name).toBe('Friend')
+  })
+
+  it('BACK_TO_MODE_SELECT returns to mode select without losing already-added players', () => {
+    let state = selectMode(initialState, '501')
+    state = addPlayer(state, 'Hunter')
+    state = addPlayer(state, 'Friend')
+    state = dispatch(state, { type: 'BACK_TO_MODE_SELECT' })
+    expect(state.phase).toBe(PHASES.MODE_SELECT)
+    expect(state.modeId).toBeNull()
+    expect(state.players.map((p) => p.name)).toEqual(['Hunter', 'Friend'])
+  })
+
+  it('picking a different mode after going back keeps those players for the new mode', () => {
+    let state = selectMode(initialState, '501')
+    state = addPlayer(state, 'Hunter')
+    state = dispatch(state, { type: 'BACK_TO_MODE_SELECT' })
+    state = selectMode(state, 'around-the-world')
+    expect(state.phase).toBe(PHASES.PLAYER_SETUP)
+    expect(state.modeId).toBe('around-the-world')
+    expect(state.players.map((p) => p.name)).toEqual(['Hunter'])
   })
 
   it('START_GAME requires a mode and at least one player', () => {
@@ -148,7 +183,7 @@ describe('turn progression', () => {
 
   it('wraps the player index around with 3 players', () => {
     let state = newGameAt501WithPlayers('A', 'B', 'C')
-    const finishTurn = (s) => throwDart(throwDart(throwDart(s, 1), 1), 1)
+    const finishTurn = (s: CountdownGameState) => throwDart(throwDart(throwDart(s, 1), 1), 1)
     state = finishTurn(state)
     expect(state.currentPlayerIndex).toBe(1)
     state = finishTurn(state)
@@ -271,5 +306,66 @@ describe('ensurePlayerIdCounterAbove', () => {
     let state = selectMode(initialState, '501')
     state = addPlayer(state, 'NewPlayer')
     expect(state.players[0].id).toBeGreaterThan(1_000_000)
+  })
+})
+
+describe('around the world', () => {
+  it('starts every player targeting 1', () => {
+    const state = newAroundTheWorldGameWithPlayers('Hunter')
+    expect(state.players[0].targetIndex).toBe(0)
+  })
+
+  it('advances to the next target on a hit, regardless of multiplier', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    state = setMultiplier(state, 3) // multiplier should be irrelevant in this mode
+    state = throwDart(state, 1)
+    expect(state.players[0].targetIndex).toBe(1)
+  })
+
+  it('does not advance on a miss (wrong number or OUT)', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    state = throwDart(state, 7) // target is 1, this misses
+    expect(state.players[0].targetIndex).toBe(0)
+    state = throwDart(state, 'OUT')
+    expect(state.players[0].targetIndex).toBe(0)
+  })
+
+  it('advances to the next player after 3 darts with no win', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter', 'Friend')
+    state = throwDart(state, 1) // hit -> targetIndex 1 (needs 2 next)
+    state = throwDart(state, 7) // miss
+    state = throwDart(state, 7) // miss
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.players[0].targetIndex).toBe(1)
+  })
+
+  it('wins immediately on completing the sequence, without requiring a 3rd dart', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    for (let n = 1; n <= 20; n++) {
+      state = throwDart(state, n)
+    }
+    expect(state.winnerId).toBeNull()
+    expect(state.players[0].targetIndex).toBe(20)
+    state = throwDart(state, 25) // Bull: the final target
+    expect(state.winnerId).toBe(state.players[0].id)
+  })
+
+  it('undo recomputes targetIndex from the darts thrown so far this turn', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    state = throwDart(state, 1) // hit -> targetIndex 1
+    state = throwDart(state, 2) // hit -> targetIndex 2
+    state = undo(state)
+    expect(state.players[0].targetIndex).toBe(1)
+  })
+
+  it('records turnHistory as a non-bust entry counting hits this turn', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    state = throwDart(state, 1) // hit
+    state = throwDart(state, 7) // miss
+    state = throwDart(state, 2) // hit (target is still 2 after the miss)
+    const [entry] = state.players[0].turnHistory
+    expect(entry.bust).toBe(false)
+    expect(entry.total).toBe(2)
+    expect(entry.throws).toHaveLength(3)
   })
 })

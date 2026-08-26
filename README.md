@@ -1,12 +1,12 @@
 # Hunter Darts
 
-A simple, mobile-friendly dart scoreboard for playing 301/501 with friends. Add players, pick a mode, and tap the segment you hit after each dart — the app tracks scores, turns, and busts for you. The current game survives a refresh, and a "History" screen lists completed games (who won, mode, per-player average) — both stored locally in the browser, no account or backend required.
+A simple, mobile-friendly dart scoreboard for playing 301, 501, or Around the World with friends. Add players, pick a mode, and tap the segment you hit after each dart — the app tracks scores, turns, and busts (or targets, for Around the World) for you. The current game survives a refresh, and a "History" screen lists completed games (who won, mode, per-player average) — both stored locally in the browser, no account or backend required.
 
 Live site: https://yaboihunta.github.io/Hdart/
 
 ## Stack
 
-- React + Vite (no backend, fully static)
+- React + Vite + TypeScript (strict mode) (no backend, fully static)
 - Deployed via GitHub Actions to GitHub Pages (see `.github/workflows/deploy.yml`)
 
 ## Local development
@@ -19,9 +19,17 @@ npm run dev
 ## Build
 
 ```bash
-npm run build
+npm run build     # tsc -b (type-check) && vite build
 npm run preview
 ```
+
+## Type checking
+
+```bash
+npm run typecheck   # tsc -b --noEmit, no build output
+```
+
+Runs in CI (`.github/workflows/test.yml`) and as part of `npm run build`, so a type error fails both.
 
 ## Testing
 
@@ -30,7 +38,7 @@ npm test        # run once
 npm run test:watch   # watch mode while developing
 ```
 
-Covers the scoring engine (`src/game/gameReducer.test.js`), the completed-game history log (`src/game/history.test.js`), and the actual click-driven UI flows — mode select, player setup, number pad, multiplier toggle, undo, busts, wins, turn history, persistence (`src/App.test.jsx`).
+Covers the scoring engine (`src/game/gameReducer.test.ts`), the shared types/mode registry (`src/game/types.test.ts`, `src/game/modes.test.ts`), the completed-game history log (`src/game/history.test.ts`), and the actual click-driven UI flows — mode select, player setup, number pad, multiplier toggle, undo, busts, wins, turn history, persistence (`src/App.test.tsx`).
 
 ## Deploying
 

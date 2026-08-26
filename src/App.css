@@ -14,7 +14,7 @@
 /* Mode select */
 .mode-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
 }
 
@@ -23,9 +23,10 @@
   border: 1px solid var(--panel-border);
   color: var(--text);
   border-radius: 12px;
-  padding: 32px 0;
-  font-size: 22px;
+  padding: 24px 12px;
+  font-size: 19px;
   font-weight: 600;
+  text-align: center;
 }
 
 .mode-card:active {
@@ -42,15 +43,15 @@
   align-self: center;
 }
 
-/* History screen */
-.history-header {
+/* Shared header row: a back button beside a screen heading */
+.screen-header {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
 }
 
-.history-header h1 {
+.screen-header h1 {
   margin: 0;
   font-size: 22px;
 }
@@ -174,6 +175,53 @@
 }
 
 /* Game board */
+.quit-btn {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.quit-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.quit-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.quit-confirm-actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quit-confirm-actions button:first-child {
+  background: var(--danger);
+  color: #0d0e12;
+}
+
+.quit-confirm-actions button:last-child {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+}
+
 .turn-banner {
   text-align: center;
   font-size: 18px;
@@ -224,6 +272,18 @@
   font-size: 28px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.player-target {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.player-target-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
 }
 
 .dart-slots {

@@ -1,6 +1,8 @@
+import type { GameState } from './types'
+
 const STORAGE_KEY = 'hdart:game-state'
 
-export function loadPersistedState() {
+export function loadPersistedState(): unknown {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : null
@@ -9,7 +11,7 @@ export function loadPersistedState() {
   }
 }
 
-export function savePersistedState(state) {
+export function savePersistedState(state: GameState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch {
