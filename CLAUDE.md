@@ -10,8 +10,8 @@ A simple dart scoreboard web app for the user and friends to track scores while 
 
 - React + Vite, plain CSS — no UI framework, no backend, no database.
 - Must stay deployable for free on **GitHub Pages** (static build only). Don't introduce anything that needs a server (no API routes, no server-side rendering).
-- Repo name is `Hunter-Darts` — `vite.config.js` sets `base: '/Hunter-Darts/'` to match the GitHub Pages project-site URL. If the repo is ever renamed, update `base` to match.
-- Deploy is automatic via `.github/workflows/deploy.yml` on push to `main`. One-time manual step required in GitHub: repo **Settings → Pages → Source: GitHub Actions**.
+- Repo is `YaBoiHunta/Hdart`, default branch `master` — `vite.config.js` sets `base: '/Hdart/'` to match the GitHub Pages project-site URL (`https://yaboihunta.github.io/Hdart/`). If the repo is ever renamed, update `base` to match, and vice versa.
+- Deploy is automatic via `.github/workflows/deploy.yml` on push to `master`. Requires repo **Settings → Pages → Source: GitHub Actions** — if it's set to "Deploy from a branch" instead, Pages serves the raw unbuilt source and the site 404s on `/src/main.jsx` and other dev-only paths.
 
 ## Design source of truth
 

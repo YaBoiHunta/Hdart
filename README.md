@@ -2,7 +2,7 @@
 
 A simple, mobile-friendly dart scoreboard for playing 301/501 with friends. Add players, pick a mode, and tap the segment you hit after each dart — the app tracks scores, turns, and busts for you.
 
-Live site (once deployed): `https://<github-username>.github.io/Hunter-Darts/`
+Live site: https://yaboihunta.github.io/Hdart/
 
 ## Stack
 
@@ -25,7 +25,7 @@ npm run preview
 
 ## Deploying
 
-Push to `main` and the GitHub Actions workflow builds and publishes to GitHub Pages automatically. In the repo's **Settings → Pages**, set the source to **GitHub Actions** (one-time setup).
+Push to `master` and the GitHub Actions workflow builds and publishes to GitHub Pages automatically. In the repo's **Settings → Pages**, the source must be set to **GitHub Actions** (not "Deploy from a branch") — one-time setup.
 
 ## Docs
 
