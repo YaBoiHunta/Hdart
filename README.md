@@ -1,6 +1,6 @@
 # Hunter Darts
 
-A simple, mobile-friendly dart scoreboard for playing 301/501 with friends. Add players, pick a mode, and tap the segment you hit after each dart — the app tracks scores, turns, and busts for you.
+A simple, mobile-friendly dart scoreboard for playing 301/501 with friends. Add players, pick a mode, and tap the segment you hit after each dart — the app tracks scores, turns, and busts for you. The current game survives a refresh, and a "History" screen lists completed games (who won, mode, per-player average) — both stored locally in the browser, no account or backend required.
 
 Live site: https://yaboihunta.github.io/Hdart/
 
@@ -22,6 +22,15 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+## Testing
+
+```bash
+npm test        # run once
+npm run test:watch   # watch mode while developing
+```
+
+Covers the scoring engine (`src/game/gameReducer.test.js`), the completed-game history log (`src/game/history.test.js`), and the actual click-driven UI flows — mode select, player setup, number pad, multiplier toggle, undo, busts, wins, turn history, persistence (`src/App.test.jsx`).
 
 ## Deploying
 

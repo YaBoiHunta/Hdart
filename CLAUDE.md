@@ -25,8 +25,10 @@ Read these before changing game logic or layout — they capture decisions made 
 
 - `src/game/modes.js` — game mode definitions (301, 501). Add new modes here.
 - `src/game/gameReducer.js` — all game state and rules live in one `useReducer` reducer (`gameReducer`). This is the single source of truth for scoring, bust, undo, and turn-advance logic. Keep it pure (no side effects) so it stays easy to reason about and test.
-- `src/screens/` — one component per app phase (`ModeSelectScreen`, `PlayerSetupScreen`, `GameBoardScreen`). `App.jsx` switches between them based on `state.phase`.
+- `src/screens/` — one component per app phase (`ModeSelectScreen`, `PlayerSetupScreen`, `GameBoardScreen`, plus `HistoryScreen` as a separate local view — see below). `App.jsx` switches between them based on `state.phase`.
 - `src/components/` — reusable UI pieces (`NumberPad`, `PlayerCard`).
+- `src/game/persistence.js` — thin localStorage read/write helpers (`loadPersistedState`/`savePersistedState`), wrapped in try/catch since storage can be unavailable (private browsing, quota). `App.jsx` hydrates via `useReducer`'s lazy-init argument and saves on every state change via a `useEffect`.
+- `src/game/history.js` — a *separate* localStorage-backed log (`hdart:history`, distinct key from `persistence.js`'s in-progress-game key) of completed games, capped at 100 entries. `buildGameSummary(state)` derives a `{finishedAt, modeId, modeLabel, players: [{name, won, average, turns}]}` entry from game state using the existing `turnAverage()` — no new scoring math. `appendGameResult()` writes it. Recorded by a `useEffect` in `App.jsx` watching `state.winnerId` (guarded by a `useRef` so it fires exactly once per win, not per re-render). This history is local to whichever device/browser is running the site — it does not sync across different players' phones (that would require a real backend, which is explicitly out of scope — see Stack & constraints above).
 
 ## Key decisions (don't relitigate without asking the user)
 
@@ -38,16 +40,21 @@ Read these before changing game logic or layout — they capture decisions made 
 - **OUT** button = a scoreless dart, ignores any selected multiplier.
 - **Turn average** = mean of completed-turn point totals, with a bust turn counting as `0` (not excluded). Computed by `turnAverage()` in `gameReducer.js` — don't recompute this ad hoc in components.
 - Each player has a `turnHistory` array (`{ total, bust }` per completed turn), appended to only when a turn ends (bust, win, or 3rd dart) — never touched by Undo, since Undo only acts on the in-progress turn.
-- No persistence (localStorage) across page refreshes yet — intentionally deferred, not an oversight.
+- **The full game state persists to localStorage** on every change (any phase — mode select, player setup, or an in-progress game) and rehydrates on load, so a refresh or closed tab doesn't lose progress. Corrupted/unrecognized stored data falls back to `initialState` rather than crashing (see `isUsableState` in `App.jsx`). Restoring persisted players calls `ensurePlayerIdCounterAbove()` so a newly-added player after reload can't reuse an id already held by a restored player (the id counter is an in-memory module variable that would otherwise reset to 1 on reload).
 
 ## Backlog / ideas not yet built
 
 - Additional game modes: Cricket, Around the Clock.
-- Persist in-progress game to localStorage so a refresh doesn't lose state.
-- Cross-game stats/history (past completed games, not just the current game's turn log) — out of scope for v1.
 - Reconsider bull (25) multiplier behavior — real darts only allows single/double bull (50 max), no triple. Currently allowed for simplicity.
+- Richer cross-game stats (checkout %, best turn ever, etc.) beyond the simple per-game history log that now exists.
 
 ## Working with this repo
 
-- No test suite yet. Verify changes with `npm run build` (catches syntax/type issues) and manual testing (`npm run dev`) — a headless browser walkthrough of mode select → add players → start → throw a few darts → undo is a fast sanity check.
+- Run `npm test` before considering any change to `gameReducer.js` or the game-board UI done. Test files:
+  - `src/game/gameReducer.test.js` — pure reducer/logic tests (scoring math, bust, undo, win, turn history, averages). Add new cases here for any new action or rule.
+  - `src/game/history.test.js` — the completed-game history log (load/append/cap-at-100, corrupted-data fallback, summary building).
+  - `src/App.test.jsx` — click-driven integration tests (React Testing Library + user-event) covering the actual buttons: mode select, player setup, multiplier toggle, number pad, undo, turn advance, bust, win, turn history display, persistence, game history. New game modes or UI features should get a test here too.
+  - `npm run test:watch` for a live-reloading loop while iterating.
+  - Test config lives in `vitest.config.js`, kept separate from `vite.config.js` on purpose — the latter controls the GitHub Pages `base` path and shouldn't carry test-only risk.
+- Also verify with `npm run build` (catches syntax/type issues) and manual testing (`npm run dev`) for anything visual the test suite doesn't cover.
 - Keep `gameReducer.js` logic-only and UI-free; screens/components should only dispatch actions and read state, never compute scoring themselves.

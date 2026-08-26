@@ -22,6 +22,13 @@ function createPlayer(name) {
   return { id: nextPlayerId++, name, score: 0, turnHistory: [] }
 }
 
+// After hydrating state from persisted storage, keep newly-added players
+// from reusing an id that a restored player already has.
+export function ensurePlayerIdCounterAbove(players) {
+  const maxId = players.reduce((max, p) => Math.max(max, p.id), 0)
+  if (maxId >= nextPlayerId) nextPlayerId = maxId + 1
+}
+
 function throwValue(segment, multiplier) {
   if (segment === 'OUT') return 0
   return segment * multiplier

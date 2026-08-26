@@ -1,6 +1,6 @@
 import { GAME_MODES } from '../game/modes'
 
-export default function ModeSelectScreen({ dispatch }) {
+export default function ModeSelectScreen({ dispatch, onShowHistory }) {
   return (
     <div className="screen mode-select">
       <h1>Hunter Darts</h1>
@@ -16,6 +16,9 @@ export default function ModeSelectScreen({ dispatch }) {
           </button>
         ))}
       </div>
+      <button className="history-entry-btn" onClick={onShowHistory}>
+        History
+      </button>
     </div>
   )
 }
