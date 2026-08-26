@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import userEvent, { type UserEvent } from '@testing-library/user-event'
 import App from './App'
 
 // App persists to real localStorage; without clearing it, a saved game from
@@ -9,7 +9,10 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-async function startGame(user, { mode = '501', players = ['Hunter'] } = {}) {
+async function startGame(
+  user: UserEvent,
+  { mode = '501', players = ['Hunter'] }: { mode?: string; players?: string[] } = {},
+) {
   render(<App />)
   await user.click(screen.getByRole('button', { name: mode }))
   for (const name of players) {
@@ -40,6 +43,21 @@ describe('mode select & player setup', () => {
 
     await user.click(screen.getAllByRole('button', { name: '✕' })[0])
     expect(screen.queryByText('Hunter')).not.toBeInTheDocument()
+  })
+
+  it('lets you go back to mode select if you picked the wrong mode, keeping your players', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '501' }))
+    await user.type(screen.getByPlaceholderText('Player name'), 'Hunter{enter}')
+
+    await user.click(screen.getByRole('button', { name: '← Back' }))
+    expect(screen.getByText('Choose a game mode')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Around the World' }))
+    expect(screen.getByText('Mode: around-the-world')).toBeInTheDocument()
+    expect(screen.getByText('Hunter')).toBeInTheDocument()
   })
 })
 
@@ -139,6 +157,32 @@ describe('turns and busts', () => {
   })
 })
 
+describe('quitting a game', () => {
+  it('requires confirmation, cancel keeps the game going', async () => {
+    const user = userEvent.setup()
+    await startGame(user)
+
+    await user.click(screen.getByRole('button', { name: '20' }))
+    await user.click(screen.getByRole('button', { name: 'Quit Game' }))
+    expect(screen.getByText('Quit this game?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Quit this game?')).not.toBeInTheDocument()
+    expect(screen.getByText('481')).toBeInTheDocument() // the dart thrown earlier still counts
+  })
+
+  it('confirming returns to mode select without touching completed-game history', async () => {
+    const user = userEvent.setup()
+    await startGame(user)
+
+    await user.click(screen.getByRole('button', { name: 'Quit Game' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, quit' }))
+
+    expect(screen.getByText('Choose a game mode')).toBeInTheDocument()
+    expect(localStorage.getItem('hdart:history')).toBeNull()
+  })
+})
+
 describe('winning', () => {
   it('declares a winner at exactly 0 and rematch resets scores', async () => {
     const user = userEvent.setup()
@@ -211,7 +255,7 @@ describe('turn history', () => {
     const user = userEvent.setup()
     await startGame(user)
 
-    const throwThree = async (n) => {
+    const throwThree = async (n: number) => {
       await user.click(screen.getByRole('button', { name: String(n) }))
       await user.click(screen.getByRole('button', { name: String(n) }))
       await user.click(screen.getByRole('button', { name: String(n) }))
@@ -255,5 +299,34 @@ describe('persistence', () => {
     localStorage.setItem('hdart:game-state', 'not valid json{{{')
     render(<App />)
     expect(screen.getByRole('button', { name: '301' })).toBeInTheDocument()
+  })
+})
+
+describe('around the world', () => {
+  it('hides the multiplier row and does not advance the target on a miss', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { mode: 'Around the World' })
+
+    expect(screen.queryByRole('button', { name: 'Double' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Triple' })).not.toBeInTheDocument()
+
+    const targetDisplay = screen.getByText('Target').parentElement
+    expect(targetDisplay).not.toBeNull()
+    expect(targetDisplay?.textContent).toBe('Target1')
+
+    await user.click(screen.getByRole('button', { name: '7' })) // miss, target is 1
+    expect(targetDisplay?.textContent).toBe('Target1')
+  })
+
+  it('wins after completing the full sequence, ending on Bull (25)', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { mode: 'Around the World' })
+
+    for (let n = 1; n <= 20; n++) {
+      await user.click(screen.getByRole('button', { name: String(n) }))
+    }
+    await user.click(screen.getByRole('button', { name: '25' }))
+
+    expect(screen.getByText('Hunter wins!')).toBeInTheDocument()
   })
 })

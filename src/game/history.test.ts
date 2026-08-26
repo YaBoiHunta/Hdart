@@ -1,9 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { loadHistory, appendGameResult, buildGameSummary } from './history'
+import type { GameHistoryEntry, GameState } from './types'
 
 beforeEach(() => {
   localStorage.clear()
 })
+
+function makeEntry(finishedAt: string): GameHistoryEntry {
+  return {
+    finishedAt,
+    modeId: '501',
+    modeLabel: '501',
+    players: [{ name: 'Hunter', won: true, average: 42, turns: 3 }],
+  }
+}
 
 describe('loadHistory', () => {
   it('returns an empty array when nothing is stored', () => {
@@ -19,12 +29,28 @@ describe('loadHistory', () => {
     localStorage.setItem('hdart:history', JSON.stringify({ not: 'an array' }))
     expect(loadHistory()).toEqual([])
   })
+
+  it('drops malformed entries instead of returning them as-is', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        makeEntry('good-entry'),
+        { finishedAt: 'missing-everything-else' },
+        { finishedAt: 'bad-players', modeId: '501', modeLabel: '501', players: 'not-an-array' },
+        null,
+        'just a string',
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].finishedAt).toBe('good-entry')
+  })
 })
 
 describe('appendGameResult', () => {
   it('prepends new entries, most recent first', () => {
-    appendGameResult({ finishedAt: 'first' })
-    appendGameResult({ finishedAt: 'second' })
+    appendGameResult(makeEntry('first'))
+    appendGameResult(makeEntry('second'))
     const history = loadHistory()
     expect(history).toHaveLength(2)
     expect(history[0].finishedAt).toBe('second')
@@ -33,7 +59,7 @@ describe('appendGameResult', () => {
 
   it('caps the list at 100 entries, dropping the oldest', () => {
     for (let i = 0; i < 105; i++) {
-      appendGameResult({ finishedAt: `game-${i}` })
+      appendGameResult(makeEntry(`game-${i}`))
     }
     const history = loadHistory()
     expect(history).toHaveLength(100)
@@ -52,8 +78,8 @@ describe('buildGameSummary', () => {
           id: 1,
           name: 'Hunter',
           turnHistory: [
-            { total: 60, bust: false },
-            { total: 40, bust: false },
+            { throws: [], total: 60, bust: false },
+            { throws: [], total: 40, bust: false },
           ],
         },
         {
@@ -62,7 +88,7 @@ describe('buildGameSummary', () => {
           turnHistory: [],
         },
       ],
-    }
+    } as unknown as GameState
 
     const summary = buildGameSummary(state)
     expect(summary.modeId).toBe('501')
