@@ -174,6 +174,63 @@
   opacity: 0.4;
 }
 
+/* Feedback animations */
+@keyframes card-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--accent), 0 0 8px 0 var(--accent);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 18px 3px var(--accent);
+  }
+}
+
+@keyframes card-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes turn-banner-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes value-pulse {
+  from {
+    color: var(--accent);
+  }
+}
+
+@keyframes dart-slot-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes btn-flash {
+  from {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+}
+
 /* Game board */
 .quit-btn {
   align-self: flex-end;
@@ -228,6 +285,7 @@
   font-weight: 600;
   color: var(--accent);
   margin-bottom: 12px;
+  animation: turn-banner-enter 320ms ease-out;
 }
 
 .player-list-board {
@@ -244,10 +302,23 @@
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
+  transition: opacity 200ms ease, border-color 200ms ease, background 200ms ease;
 }
 
 .player-card.active {
   border-color: var(--accent);
+  animation: card-glow 1.8s ease-in-out infinite;
+}
+
+.player-card:not(.active) {
+  opacity: 0.55;
+}
+
+.player-card.busted {
+  opacity: 1;
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  animation: card-shake 400ms ease-in-out;
 }
 
 .player-card-top {
@@ -272,6 +343,10 @@
   font-size: 28px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.player-score.pulse {
+  animation: value-pulse 400ms ease-out;
 }
 
 .player-target {
@@ -379,6 +454,10 @@
   color: var(--text-dim);
 }
 
+.dart-slot.pop-in {
+  animation: dart-slot-pop 220ms ease-out;
+}
+
 /* Number pad */
 .number-pad {
   margin-top: auto;
@@ -426,6 +505,10 @@
   background: var(--accent-active);
 }
 
+.number-btn.flash {
+  animation: btn-flash 260ms ease-out;
+}
+
 .number-btn.out {
   color: var(--danger);
   border-color: var(--danger-bg);
@@ -460,4 +543,24 @@
   color: #0d0e12;
   font-weight: 700;
   padding: 14px 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Near-zero duration (not `animation: none`) keeps animationend firing so the JS
+     cleanup for .flash/.pulse/.busted still runs — otherwise a busted card would
+     stay stuck red forever, since its cleanup depends on that event. */
+  .number-btn.flash,
+  .player-score.pulse,
+  .dart-slot.pop-in,
+  .player-card.busted,
+  .player-card.active,
+  .turn-banner {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .player-card,
+  .player-card.busted {
+    transition-duration: 0.01ms !important;
+  }
 }

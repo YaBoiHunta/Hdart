@@ -14,6 +14,9 @@ export default function GameBoardScreen({ state, dispatch }: GameBoardScreenProp
   const mode = getModeById(state.modeId)
   const activePlayer = state.players[state.currentPlayerIndex]
   const winner = state.players.find((p) => p.id === state.winnerId)
+  // Increments once per completed turn regardless of player count, so the turn banner's
+  // enter animation still replays every turn in a 1-player game (currentPlayerIndex stays 0 there).
+  const turnKey = state.players.reduce((sum, p) => sum + p.turnHistory.length, 0)
 
   if (!mode || !activePlayer) return null
 
@@ -45,7 +48,7 @@ export default function GameBoardScreen({ state, dispatch }: GameBoardScreenProp
         </button>
       )}
 
-      <div className="turn-banner">{activePlayer.name}'s turn</div>
+      <div key={turnKey} className="turn-banner">{activePlayer.name}'s turn</div>
 
       <div className="player-list-board">
         {state.players.map((p, i) => (
