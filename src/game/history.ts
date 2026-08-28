@@ -1,9 +1,32 @@
 import { turnAverage } from './gameReducer'
 import { getModeById } from './modes'
-import type { GameHistoryEntry, GameHistoryHighestRound, GameHistoryPlayerSummary, GameState } from './types'
+import type {
+  GameHistoryEntry,
+  GameHistoryHighestRound,
+  GameHistoryPlayerSummary,
+  GameState,
+  ThrowRecord,
+  TurnHistoryEntry,
+} from './types'
 
 const STORAGE_KEY = 'hdart:history'
 const MAX_ENTRIES = 100
+
+function isThrowRecord(value: unknown): value is ThrowRecord {
+  if (!value || typeof value !== 'object') return false
+  const t = value as Partial<ThrowRecord>
+  return (
+    (typeof t.segment === 'number' || t.segment === 'OUT') &&
+    (t.multiplier === 1 || t.multiplier === 2 || t.multiplier === 3) &&
+    typeof t.value === 'number'
+  )
+}
+
+function isTurnHistoryEntry(value: unknown): value is TurnHistoryEntry {
+  if (!value || typeof value !== 'object') return false
+  const t = value as Partial<TurnHistoryEntry>
+  return Array.isArray(t.throws) && t.throws.every(isThrowRecord) && typeof t.total === 'number' && typeof t.bust === 'boolean'
+}
 
 function isGameHistoryPlayerSummary(value: unknown): value is GameHistoryPlayerSummary {
   if (!value || typeof value !== 'object') return false
@@ -12,7 +35,11 @@ function isGameHistoryPlayerSummary(value: unknown): value is GameHistoryPlayerS
     typeof p.name === 'string' &&
     typeof p.won === 'boolean' &&
     (p.average === null || typeof p.average === 'number') &&
-    typeof p.turns === 'number'
+    typeof p.turns === 'number' &&
+    // turnHistory predates this field — entries saved before it shipped
+    // won't have it at all, so treat "missing" as valid (normalized to []
+    // below), rather than dropping otherwise-valid history entries.
+    (p.turnHistory === undefined || (Array.isArray(p.turnHistory) && p.turnHistory.every(isTurnHistoryEntry)))
   )
 }
 
@@ -62,6 +89,7 @@ export function buildGameSummary(state: GameState): GameHistoryEntry {
       won: p.id === state.winnerId,
       average: turnAverage(p),
       turns: p.turnHistory.length,
+      turnHistory: p.turnHistory,
     })),
     highestRound: computeHighestRound(state, mode),
   }
@@ -74,7 +102,11 @@ export function loadHistory(): GameHistoryEntry[] {
     return Array.isArray(parsed)
       ? parsed
           .filter(isGameHistoryEntry)
-          .map((e) => ({ ...e, highestRound: e.highestRound ?? null }))
+          .map((e) => ({
+            ...e,
+            highestRound: e.highestRound ?? null,
+            players: e.players.map((p) => ({ ...p, turnHistory: p.turnHistory ?? [] })),
+          }))
       : []
   } catch {
     return []

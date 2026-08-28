@@ -173,6 +173,48 @@ describe('turns and busts', () => {
   })
 })
 
+describe('cross-turn undo', () => {
+  it('reaches back into the previous player turn after confirmation', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { players: ['Hunter', 'Friend'] })
+
+    await user.click(screen.getByRole('button', { name: '20' }))
+    await user.click(screen.getByRole('button', { name: '20' }))
+    await user.click(screen.getByRole('button', { name: '20' })) // Hunter's turn ends, Friend is active
+    expect(screen.getByText("Friend's turn")).toBeInTheDocument()
+    expect(screen.getByText('441')).toBeInTheDocument() // Hunter: 501 - 60
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByText("Undo Hunter's last turn?")).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Yes, undo' }))
+    expect(screen.getByText("Hunter's turn")).toBeInTheDocument()
+    expect(screen.getAllByText('501')).toHaveLength(2) // both players restored to their starting score
+  })
+
+  it('cancelling the confirmation leaves the game untouched', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { players: ['Hunter', 'Friend'] })
+
+    await user.click(screen.getByRole('button', { name: '20' }))
+    await user.click(screen.getByRole('button', { name: '20' }))
+    await user.click(screen.getByRole('button', { name: '20' }))
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText("Undo Hunter's last turn?")).not.toBeInTheDocument()
+    expect(screen.getByText("Friend's turn")).toBeInTheDocument()
+    expect(screen.getByText('441')).toBeInTheDocument()
+  })
+
+  it('is disabled at the very start of the game, with no previous turn to reach into', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { players: ['Hunter', 'Friend'] })
+
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+})
+
 describe('quitting a game', () => {
   it('requires confirmation, cancel keeps the game going', async () => {
     const user = userEvent.setup()
@@ -294,6 +336,16 @@ describe('game history', () => {
 
     expect(screen.getByText('301')).toBeInTheDocument()
     expect(screen.getByText('Hunter (won)')).toBeInTheDocument()
+
+    const roundsToggle = screen.getByRole('button', { name: /Rounds \(2\)/ })
+    expect(screen.queryByText('T20')).not.toBeInTheDocument()
+
+    await user.click(roundsToggle)
+    expect(screen.getAllByText('T20')).toHaveLength(5) // 5 triple-20s across both rounds
+    expect(screen.getByText('Hide rounds ▲')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Hide rounds ▲' }))
+    expect(screen.queryByText('T20')).not.toBeInTheDocument()
   })
 
   it('does not duplicate the entry if the page refreshes right after a win', async () => {

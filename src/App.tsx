@@ -3,6 +3,8 @@ import { gameReducer, initialState, PHASES, ensurePlayerIdCounterAbove, isGameOv
 import { loadPersistedState, savePersistedState } from './game/persistence'
 import { buildGameSummary, appendGameResult } from './game/history'
 import type { GameState } from './game/types'
+import { SoundProvider } from './audio/SoundContext'
+import SoundToggle from './components/SoundToggle'
 import ModeSelectScreen from './screens/ModeSelectScreen'
 import PlayerSetupScreen from './screens/PlayerSetupScreen'
 import GameBoardScreen from './screens/GameBoardScreen'
@@ -34,7 +36,12 @@ function initState(): GameState {
     : typeof saved.winnerId === 'number'
       ? [saved.winnerId]
       : []
-  return { ...saved, finishOrder }
+  // turnOrderLog predates cross-turn undo — a state persisted by a previous
+  // build won't have it. Defaulting to empty just means undo can't reach
+  // back past this point, not a crash.
+  const rawTurnOrderLog = (saved as { turnOrderLog?: unknown }).turnOrderLog
+  const turnOrderLog = Array.isArray(rawTurnOrderLog) ? (rawTurnOrderLog as number[]) : []
+  return { ...saved, finishOrder, turnOrderLog }
 }
 
 export default function App() {
@@ -59,21 +66,24 @@ export default function App() {
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [state.finishOrder, state.winnerId, state.historyRecorded])
 
-  if (historyOpen) {
-    return <HistoryScreen onBack={() => setHistoryOpen(false)} />
-  }
-
   return (
-    <>
-      {state.phase === PHASES.MODE_SELECT && (
-        <ModeSelectScreen dispatch={dispatch} onShowHistory={() => setHistoryOpen(true)} />
+    <SoundProvider>
+      <SoundToggle />
+      {historyOpen ? (
+        <HistoryScreen onBack={() => setHistoryOpen(false)} />
+      ) : (
+        <>
+          {state.phase === PHASES.MODE_SELECT && (
+            <ModeSelectScreen dispatch={dispatch} onShowHistory={() => setHistoryOpen(true)} />
+          )}
+          {state.phase === PHASES.PLAYER_SETUP && (
+            <PlayerSetupScreen state={state} dispatch={dispatch} />
+          )}
+          {state.phase === PHASES.GAME && (
+            <GameBoardScreen state={state} dispatch={dispatch} />
+          )}
+        </>
       )}
-      {state.phase === PHASES.PLAYER_SETUP && (
-        <PlayerSetupScreen state={state} dispatch={dispatch} />
-      )}
-      {state.phase === PHASES.GAME && (
-        <GameBoardScreen state={state} dispatch={dispatch} />
-      )}
-    </>
+    </SoundProvider>
   )
 }

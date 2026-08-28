@@ -27,6 +27,7 @@ export const initialState: GameState = {
   winnerId: null,
   finishOrder: [],
   historyRecorded: false,
+  turnOrderLog: [],
 }
 
 let nextPlayerId = 1
@@ -101,6 +102,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         winnerId: null,
         finishOrder: [],
         historyRecorded: false,
+        turnOrderLog: [],
       }
     }
 
@@ -121,9 +123,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case 'UNDO': {
       if (isGameOver(state)) return state
-      if (state.currentTurn.throws.length === 0) return state
       const mode = getModeById(state.modeId)
       if (!mode) return state
+
+      if (state.currentTurn.throws.length === 0) {
+        return undoIntoPreviousTurn(state)
+      }
+
       const remaining = state.currentTurn.throws.slice(0, -1)
       const players = [...state.players]
       const playerIndex = state.currentPlayerIndex
@@ -170,6 +176,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         winnerId: null,
         finishOrder: [],
         historyRecorded: false,
+        turnOrderLog: [],
       }
     }
 
@@ -179,6 +186,67 @@ export function gameReducer(state: GameState, action: Action): GameState {
     default:
       return state
   }
+}
+
+// Reaches back into the previous player's just-completed turn, undoing it as
+// if it hadn't happened, and hands the reclaimed throws back to them as their
+// in-progress turn (so the normal same-turn undo above can then remove darts
+// from it one at a time). Chained/multi-turn undo falls out of this for free:
+// once the reclaimed turn is emptied, pressing Undo again re-enters this
+// branch and reaches one turn further back via turnOrderLog.
+function undoIntoPreviousTurn(state: GameState): GameState {
+  if (state.turnOrderLog.length === 0) return state
+  const prevIndex = state.turnOrderLog[state.turnOrderLog.length - 1]
+  const prevPlayer = state.players[prevIndex]
+  if (!prevPlayer || prevPlayer.turnHistory.length === 0) return state
+
+  const poppedEntry = prevPlayer.turnHistory[prevPlayer.turnHistory.length - 1]
+  // Entries saved before cross-turn undo shipped don't carry the pre-turn
+  // snapshot needed to restore them correctly — treat as unreachable rather
+  // than guess.
+  if (poppedEntry.startScore === undefined || poppedEntry.startTargetIndex === undefined) {
+    return state
+  }
+
+  const players = [...state.players]
+  const restoredTurnHistory = prevPlayer.turnHistory.slice(0, -1)
+  players[prevIndex] = isCountdownPlayer(prevPlayer)
+    ? { ...prevPlayer, score: poppedEntry.startScore, turnHistory: restoredTurnHistory }
+    : { ...prevPlayer, targetIndex: poppedEntry.startTargetIndex, turnHistory: restoredTurnHistory }
+
+  let finishOrder = state.finishOrder
+  let winnerId = state.winnerId
+  if (finishOrder.includes(prevPlayer.id)) {
+    finishOrder = finishOrder.filter((id) => id !== prevPlayer.id)
+    if (winnerId === prevPlayer.id) {
+      winnerId = finishOrder[0] ?? null
+    }
+  }
+
+  return {
+    ...state,
+    players,
+    finishOrder,
+    winnerId,
+    currentPlayerIndex: prevIndex,
+    currentTurn: {
+      throws: poppedEntry.throws,
+      startScore: poppedEntry.startScore,
+      startTargetIndex: poppedEntry.startTargetIndex,
+    },
+    activeMultiplier: 1,
+    turnOrderLog: state.turnOrderLog.slice(0, -1),
+  }
+}
+
+// Whether pressing Undo right now would reach back into a previous player's
+// completed turn (as opposed to just removing a dart from the current turn).
+export function canUndoPreviousTurn(state: GameState): boolean {
+  return (
+    !isGameOver(state) &&
+    state.currentTurn.throws.length === 0 &&
+    state.turnOrderLog.length > 0
+  )
 }
 
 function throwDartCountdown(state: GameState, segment: ThrowSegment): GameState {
@@ -198,7 +266,16 @@ function throwDartCountdown(state: GameState, segment: ThrowSegment): GameState 
     players[playerIndex] = {
       ...player,
       score: state.currentTurn.startScore,
-      turnHistory: [...player.turnHistory, { throws: throwsThisTurn, total: 0, bust: true }],
+      turnHistory: [
+        ...player.turnHistory,
+        {
+          throws: throwsThisTurn,
+          total: 0,
+          bust: true,
+          startScore: state.currentTurn.startScore,
+          startTargetIndex: state.currentTurn.startTargetIndex,
+        },
+      ],
     }
     return advanceTurn(state, players)
   }
@@ -209,7 +286,13 @@ function throwDartCountdown(state: GameState, segment: ThrowSegment): GameState 
       score: 0,
       turnHistory: [
         ...player.turnHistory,
-        { throws: throwsThisTurn, total: turnPoints(throwsThisTurn), bust: false },
+        {
+          throws: throwsThisTurn,
+          total: turnPoints(throwsThisTurn),
+          bust: false,
+          startScore: state.currentTurn.startScore,
+          startTargetIndex: state.currentTurn.startTargetIndex,
+        },
       ],
     }
     return finishPlayer(state, players, player.id, throwsThisTurn)
@@ -221,7 +304,13 @@ function throwDartCountdown(state: GameState, segment: ThrowSegment): GameState 
       score: newScore,
       turnHistory: [
         ...player.turnHistory,
-        { throws: throwsThisTurn, total: turnPoints(throwsThisTurn), bust: false },
+        {
+          throws: throwsThisTurn,
+          total: turnPoints(throwsThisTurn),
+          bust: false,
+          startScore: state.currentTurn.startScore,
+          startTargetIndex: state.currentTurn.startTargetIndex,
+        },
       ],
     }
     return advanceTurn(state, players)
@@ -258,7 +347,13 @@ function throwDartProgression(
       targetIndex,
       turnHistory: [
         ...player.turnHistory,
-        { throws: throwsThisTurn, total: turnPoints(throwsThisTurn), bust: false },
+        {
+          throws: throwsThisTurn,
+          total: turnPoints(throwsThisTurn),
+          bust: false,
+          startScore: state.currentTurn.startScore,
+          startTargetIndex: state.currentTurn.startTargetIndex,
+        },
       ],
     }
     return finishPlayer(state, players, player.id, throwsThisTurn)
@@ -270,7 +365,13 @@ function throwDartProgression(
       targetIndex,
       turnHistory: [
         ...player.turnHistory,
-        { throws: throwsThisTurn, total: turnPoints(throwsThisTurn), bust: false },
+        {
+          throws: throwsThisTurn,
+          total: turnPoints(throwsThisTurn),
+          bust: false,
+          startScore: state.currentTurn.startScore,
+          startTargetIndex: state.currentTurn.startTargetIndex,
+        },
       ],
     }
     return advanceTurn(state, players)
@@ -327,6 +428,7 @@ function advanceTurn(state: GameState, players: Player[]): GameState {
     currentPlayerIndex: nextIndex,
     currentTurn,
     activeMultiplier: 1,
+    turnOrderLog: [...state.turnOrderLog, state.currentPlayerIndex],
   }
 }
 

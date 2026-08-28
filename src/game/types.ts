@@ -19,6 +19,12 @@ export interface TurnHistoryEntry {
   throws: ThrowRecord[]
   total: number
   bust: boolean
+  // Player state before this turn began — absent on entries saved before
+  // cross-turn undo shipped. Lets undo restore a completed turn exactly
+  // instead of replaying/re-deriving it (which can't recover a bust's
+  // pre-turn score, since `total` is 0 on a bust).
+  startScore?: number
+  startTargetIndex?: number
 }
 
 interface PlayerBase {
@@ -78,6 +84,9 @@ export interface GameState {
   winnerId: number | null
   finishOrder: number[]
   historyRecorded: boolean
+  // Player array-indices, pushed each time a turn completes (in turn order).
+  // Lets undo reach back into the previous player's just-ended turn.
+  turnOrderLog: number[]
 }
 
 export type Action =
@@ -98,6 +107,9 @@ export interface GameHistoryPlayerSummary {
   won: boolean
   average: number | null
   turns: number
+  // Round-by-round scoring detail for this game. Absent on entries saved
+  // before this shipped.
+  turnHistory?: TurnHistoryEntry[]
 }
 
 export interface GameHistoryHighestRound {
