@@ -2,6 +2,8 @@ import { useState, type Dispatch } from 'react'
 import PlayerCard from '../components/PlayerCard'
 import NumberPad from '../components/NumberPad'
 import { getModeById } from '../game/modes'
+import { getStandings, isGameOver, placementOf, turnAverage } from '../game/gameReducer'
+import { ordinal } from '../game/ordinal'
 import type { Action, GameState } from '../game/types'
 
 interface GameBoardScreenProps {
@@ -13,17 +15,34 @@ export default function GameBoardScreen({ state, dispatch }: GameBoardScreenProp
   const [confirmingQuit, setConfirmingQuit] = useState(false)
   const mode = getModeById(state.modeId)
   const activePlayer = state.players[state.currentPlayerIndex]
-  const winner = state.players.find((p) => p.id === state.winnerId)
+  const gameOver = isGameOver(state)
+  const lastFinisherId = state.finishOrder[state.finishOrder.length - 1]
+  const lastFinisher = state.players.find((p) => p.id === lastFinisherId)
   // Increments once per completed turn regardless of player count, so the turn banner's
   // enter animation still replays every turn in a 1-player game (currentPlayerIndex stays 0 there).
   const turnKey = state.players.reduce((sum, p) => sum + p.turnHistory.length, 0)
 
   if (!mode || !activePlayer) return null
 
-  if (winner) {
+  if (gameOver) {
+    const standings = getStandings(state)
     return (
       <div className="screen game-over">
-        <h1>{winner.name} wins!</h1>
+        <h1>{standings[0].name} wins!</h1>
+        <ul className="standings-list">
+          {standings.map((p, i) => {
+            const average = turnAverage(p)
+            return (
+              <li key={p.id}>
+                <span className="standings-place">{ordinal(i + 1)}</span>
+                <span className="standings-name">{p.name}</span>
+                <span className="standings-average">
+                  {average === null ? '—' : `avg ${average.toFixed(1)}`}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
         <div className="game-over-actions">
           <button onClick={() => dispatch({ type: 'REMATCH' })}>Rematch</button>
           <button onClick={() => dispatch({ type: 'NEW_GAME' })}>New Game</button>
@@ -48,6 +67,13 @@ export default function GameBoardScreen({ state, dispatch }: GameBoardScreenProp
         </button>
       )}
 
+      {lastFinisher && (
+        <div className="finish-banner">
+          {lastFinisher.name} finished — {ordinal(state.finishOrder.length)} place! Playing on
+          for the rest of the placements.
+        </div>
+      )}
+
       <div key={turnKey} className="turn-banner">{activePlayer.name}'s turn</div>
 
       <div className="player-list-board">
@@ -58,6 +84,7 @@ export default function GameBoardScreen({ state, dispatch }: GameBoardScreenProp
             mode={mode}
             isActive={i === state.currentPlayerIndex}
             turnThrows={state.currentTurn.throws}
+            place={placementOf(state, p.id)}
           />
         ))}
       </div>

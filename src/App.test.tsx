@@ -121,6 +121,22 @@ describe('scoring buttons', () => {
     await user.click(screen.getByRole('button', { name: '5' }))
     expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled()
   })
+
+  it('Bullseye (50) scores a flat 50, ignoring an active multiplier', async () => {
+    const user = userEvent.setup()
+    await startGame(user)
+
+    await user.click(screen.getByRole('button', { name: 'Triple' }))
+    await user.click(screen.getByRole('button', { name: '50' }))
+    expect(screen.getByText('451')).toBeInTheDocument() // 501 - 50, triple ignored
+  })
+
+  it('Bullseye (50) is not shown in Around the World', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { mode: 'Around the World' })
+
+    expect(screen.queryByRole('button', { name: '50' })).not.toBeInTheDocument()
+  })
 })
 
 describe('turns and busts', () => {
@@ -205,6 +221,52 @@ describe('winning', () => {
 
     await user.click(screen.getByRole('button', { name: 'Rematch' }))
     expect(screen.getByText('301')).toBeInTheDocument()
+  })
+})
+
+describe('multi-player continue-to-place', () => {
+  it('continues playing after the first win to determine 2nd and 3rd place', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { mode: '301', players: ['Hunter', 'Friend', 'Buddy'] })
+
+    const triple20 = async () => {
+      await user.click(screen.getByRole('button', { name: 'Triple' }))
+      await user.click(screen.getByRole('button', { name: '20' }))
+    }
+    const turnOf301 = async () => {
+      // 301 - 180 = 121, leaves the active player at 121 after 3 darts.
+      await triple20()
+      await triple20()
+      await triple20()
+    }
+    const finishFrom121 = async () => {
+      // 121 - 60 - 60 - 1 = 0
+      await triple20()
+      await triple20()
+      await user.click(screen.getByRole('button', { name: '1' }))
+    }
+
+    await turnOf301() // Hunter's turn 1 -> 121
+    await turnOf301() // Friend's turn 1 -> 121
+    await turnOf301() // Buddy's turn 1 -> 121
+
+    // Hunter finishes (1st) -> the game must continue for 2nd/3rd, not end outright.
+    await finishFrom121()
+    expect(screen.queryByText('Hunter wins!')).not.toBeInTheDocument()
+    expect(screen.getByText(/Hunter finished — 1st place/)).toBeInTheDocument()
+    expect(screen.getByText("Friend's turn")).toBeInTheDocument()
+    expect(localStorage.getItem('hdart:history')).toBeNull() // not recorded yet
+
+    // Friend finishes (2nd) -> only Buddy is left, so the game ends automatically
+    // without Buddy ever needing to throw, and the game is now fully recorded.
+    await finishFrom121()
+    expect(screen.getByText('Hunter wins!')).toBeInTheDocument()
+    expect(screen.getByText('1st').closest('li')?.textContent).toContain('Hunter')
+    expect(screen.getByText('2nd').closest('li')?.textContent).toContain('Friend')
+    expect(screen.getByText('3rd').closest('li')?.textContent).toContain('Buddy')
+
+    const stored: unknown[] = JSON.parse(localStorage.getItem('hdart:history') ?? '[]')
+    expect(stored).toHaveLength(1)
   })
 })
 

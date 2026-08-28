@@ -12,6 +12,7 @@ function makeEntry(finishedAt: string): GameHistoryEntry {
     modeId: '501',
     modeLabel: '501',
     players: [{ name: 'Hunter', won: true, average: 42, turns: 3 }],
+    highestRound: { total: 60, playerName: 'Hunter' },
   }
 }
 
@@ -37,6 +38,13 @@ describe('loadHistory', () => {
         makeEntry('good-entry'),
         { finishedAt: 'missing-everything-else' },
         { finishedAt: 'bad-players', modeId: '501', modeLabel: '501', players: 'not-an-array' },
+        {
+          finishedAt: 'bad-highest-round',
+          modeId: '501',
+          modeLabel: '501',
+          players: [],
+          highestRound: 'not-an-object',
+        },
         null,
         'just a string',
       ]),
@@ -44,6 +52,25 @@ describe('loadHistory', () => {
     const history = loadHistory()
     expect(history).toHaveLength(1)
     expect(history[0].finishedAt).toBe('good-entry')
+  })
+
+  it('tolerates entries saved before highestRound existed, normalizing it to null', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        {
+          finishedAt: 'pre-feature-entry',
+          modeId: '501',
+          modeLabel: '501',
+          players: [{ name: 'Hunter', won: true, average: 42, turns: 3 }],
+          // no highestRound field at all — this is what history entries looked
+          // like before the "highest round" stat was added.
+        },
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].highestRound).toBeNull()
   })
 })
 
@@ -98,5 +125,47 @@ describe('buildGameSummary', () => {
     const [hunter, friend] = summary.players
     expect(hunter).toMatchObject({ name: 'Hunter', won: true, average: 50, turns: 2 })
     expect(friend).toMatchObject({ name: 'Friend', won: false, average: null, turns: 0 })
+  })
+
+  it('captures the highest scoring round across all players in a countdown game', () => {
+    const state = {
+      modeId: '501',
+      winnerId: 2,
+      players: [
+        {
+          id: 1,
+          name: 'Hunter',
+          turnHistory: [
+            { throws: [], total: 45, bust: false },
+            { throws: [], total: 0, bust: true },
+          ],
+        },
+        {
+          id: 2,
+          name: 'Friend',
+          turnHistory: [{ throws: [], total: 140, bust: false }],
+        },
+      ],
+    } as unknown as GameState
+
+    const summary = buildGameSummary(state)
+    expect(summary.highestRound).toEqual({ total: 140, playerName: 'Friend' })
+  })
+
+  it('is null for a progression-family game, since "total" there means hits not points', () => {
+    const state = {
+      modeId: 'around-the-world',
+      winnerId: 1,
+      players: [
+        {
+          id: 1,
+          name: 'Hunter',
+          turnHistory: [{ throws: [], total: 3, bust: false }],
+        },
+      ],
+    } as unknown as GameState
+
+    const summary = buildGameSummary(state)
+    expect(summary.highestRound).toBeNull()
   })
 })

@@ -76,6 +76,7 @@ export interface GameState {
   currentTurn: CurrentTurn
   activeMultiplier: Multiplier
   winnerId: number | null
+  finishOrder: number[]
   historyRecorded: boolean
 }
 
@@ -99,9 +100,15 @@ export interface GameHistoryPlayerSummary {
   turns: number
 }
 
+export interface GameHistoryHighestRound {
+  total: number
+  playerName: string
+}
+
 export interface GameHistoryEntry {
   finishedAt: string
   modeId: string | null
   modeLabel: string
   players: GameHistoryPlayerSummary[]
+  highestRound: GameHistoryHighestRound | null
 }

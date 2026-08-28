@@ -25,6 +25,7 @@ export const initialState: GameState = {
   currentTurn: { throws: [], startScore: 0, startTargetIndex: 0 },
   activeMultiplier: 1,
   winnerId: null,
+  finishOrder: [],
   historyRecorded: false,
 }
 
@@ -98,6 +99,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         currentTurn: initialTurnFor(mode),
         activeMultiplier: 1,
         winnerId: null,
+        finishOrder: [],
         historyRecorded: false,
       }
     }
@@ -108,7 +110,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
     }
 
     case 'THROW_DART': {
-      if (state.winnerId) return state
+      if (isGameOver(state)) return state
       const mode = getModeById(state.modeId)
       if (!mode) return state
       if (mode.family === 'progression') {
@@ -118,6 +120,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
     }
 
     case 'UNDO': {
+      if (isGameOver(state)) return state
       if (state.currentTurn.throws.length === 0) return state
       const mode = getModeById(state.modeId)
       if (!mode) return state
@@ -165,6 +168,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         currentTurn: initialTurnFor(mode),
         activeMultiplier: 1,
         winnerId: null,
+        finishOrder: [],
         historyRecorded: false,
       }
     }
@@ -181,7 +185,7 @@ function throwDartCountdown(state: GameState, segment: ThrowSegment): GameState 
   const player = state.players[state.currentPlayerIndex]
   if (!isCountdownPlayer(player)) return state
 
-  const multiplier = segment === 'OUT' ? 1 : state.activeMultiplier
+  const multiplier = segment === 'OUT' || segment === 50 ? 1 : state.activeMultiplier
   const value = throwValue(segment, multiplier)
   const players = [...state.players]
   const playerIndex = state.currentPlayerIndex
@@ -208,13 +212,7 @@ function throwDartCountdown(state: GameState, segment: ThrowSegment): GameState 
         { throws: throwsThisTurn, total: turnPoints(throwsThisTurn), bust: false },
       ],
     }
-    return {
-      ...state,
-      players,
-      winnerId: player.id,
-      currentTurn: { ...state.currentTurn, throws: throwsThisTurn },
-      activeMultiplier: 1,
-    }
+    return finishPlayer(state, players, player.id, throwsThisTurn)
   }
 
   if (throwsThisTurn.length >= 3) {
@@ -263,13 +261,7 @@ function throwDartProgression(
         { throws: throwsThisTurn, total: turnPoints(throwsThisTurn), bust: false },
       ],
     }
-    return {
-      ...state,
-      players,
-      winnerId: player.id,
-      currentTurn: { ...state.currentTurn, throws: throwsThisTurn },
-      activeMultiplier: 1,
-    }
+    return finishPlayer(state, players, player.id, throwsThisTurn)
   }
 
   if (throwsThisTurn.length >= 3) {
@@ -294,8 +286,35 @@ function throwDartProgression(
   }
 }
 
+// Finishing a player ends the game outright once at most one other player is
+// still unfinished (they take last place automatically, with no more darts to
+// throw); otherwise the finisher is removed from rotation and play continues.
+function finishPlayer(
+  state: GameState,
+  players: Player[],
+  finisherId: number,
+  throwsThisTurn: ThrowRecord[],
+): GameState {
+  const finishOrder = [...state.finishOrder, finisherId]
+  const stateWithFinish: GameState = {
+    ...state,
+    players,
+    finishOrder,
+    winnerId: state.winnerId ?? finisherId,
+    currentTurn: { ...state.currentTurn, throws: throwsThisTurn },
+    activeMultiplier: 1,
+  }
+  const remaining = players.length - finishOrder.length
+  return remaining <= 1 ? stateWithFinish : advanceTurn(stateWithFinish, players)
+}
+
 function advanceTurn(state: GameState, players: Player[]): GameState {
-  const nextIndex = (state.currentPlayerIndex + 1) % players.length
+  const finishedIds = new Set(state.finishOrder)
+  let nextIndex = state.currentPlayerIndex
+  for (let i = 0; i < players.length; i++) {
+    nextIndex = (nextIndex + 1) % players.length
+    if (!finishedIds.has(players[nextIndex].id)) break
+  }
   const nextPlayer = players[nextIndex]
   const currentTurn: CurrentTurn = {
     throws: [],
@@ -315,4 +334,35 @@ export function turnAverage(player: Player): number | null {
   if (player.turnHistory.length === 0) return null
   const sum = player.turnHistory.reduce((acc, t) => acc + t.total, 0)
   return sum / player.turnHistory.length
+}
+
+export function isGameOver(state: GameState): boolean {
+  if (state.finishOrder.length > 0) {
+    return state.players.length - state.finishOrder.length <= 1
+  }
+  // Defense-in-depth for legacy persisted states that predate finishOrder
+  // but already have winnerId set (see App.tsx's migration on load).
+  return state.winnerId !== null
+}
+
+// Finished players (in finish order) followed by any player still unfinished
+// (only relevant once the game is over, at which point at most one remains).
+export function getStandings(state: GameState): Player[] {
+  const byId = new Map(state.players.map((p) => [p.id, p]))
+  const finished = state.finishOrder
+    .map((id) => byId.get(id))
+    .filter((p): p is Player => !!p)
+  const finishedIds = new Set(state.finishOrder)
+  const remaining = state.players.filter((p) => !finishedIds.has(p.id))
+  return [...finished, ...remaining]
+}
+
+// 1-indexed placement, or null if this player hasn't finished and the game
+// is still going. The one player left standing when the game ends never
+// gets pushed onto finishOrder (they win last place "by default"), so once
+// the game is over, treat any not-yet-finished player as last place.
+export function placementOf(state: GameState, playerId: number): number | null {
+  const idx = state.finishOrder.indexOf(playerId)
+  if (idx !== -1) return idx + 1
+  return isGameOver(state) ? state.players.length : null
 }

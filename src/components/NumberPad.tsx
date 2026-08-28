@@ -80,11 +80,16 @@ export default function NumberPad({ state, dispatch, mode }: NumberPadProps) {
         <FlashButton className="number-btn bull" onClick={() => throwDart(25)}>
           25
         </FlashButton>
+        {mode.family === 'countdown' && (
+          <FlashButton className="number-btn bullseye" onClick={() => throwDart(50)}>
+            50
+          </FlashButton>
+        )}
         <FlashButton className="number-btn out" onClick={() => throwDart('OUT')}>
           OUT
         </FlashButton>
         <button
-          className="number-btn undo"
+          className={`number-btn undo${mode.family === 'countdown' ? ' undo-narrow' : ''}`}
           onClick={() => dispatch({ type: 'UNDO' })}
           disabled={state.currentTurn.throws.length === 0}
         >
