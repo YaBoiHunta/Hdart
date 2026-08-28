@@ -72,6 +72,44 @@ describe('loadHistory', () => {
     expect(history).toHaveLength(1)
     expect(history[0].highestRound).toBeNull()
   })
+
+  it('tolerates entries saved before turnHistory existed, normalizing it to an empty array', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        {
+          finishedAt: 'pre-feature-entry',
+          modeId: '501',
+          modeLabel: '501',
+          players: [{ name: 'Hunter', won: true, average: 42, turns: 3 }],
+          highestRound: null,
+          // no turnHistory field on the player — pre-dates round expansion.
+        },
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].players[0].turnHistory).toEqual([])
+  })
+
+  it('drops an entry with a malformed turnHistory', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        makeEntry('good-entry'),
+        {
+          finishedAt: 'bad-turn-history',
+          modeId: '501',
+          modeLabel: '501',
+          players: [{ name: 'Hunter', won: true, average: 42, turns: 1, turnHistory: 'not-an-array' }],
+          highestRound: null,
+        },
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].finishedAt).toBe('good-entry')
+  })
 })
 
 describe('appendGameResult', () => {
@@ -125,6 +163,20 @@ describe('buildGameSummary', () => {
     const [hunter, friend] = summary.players
     expect(hunter).toMatchObject({ name: 'Hunter', won: true, average: 50, turns: 2 })
     expect(friend).toMatchObject({ name: 'Friend', won: false, average: null, turns: 0 })
+  })
+
+  it('captures each player full turn history for round-by-round detail', () => {
+    const turnHistory = [
+      { throws: [{ segment: 20, multiplier: 3, value: 60 }], total: 60, bust: false, startScore: 501, startTargetIndex: 0 },
+    ]
+    const state = {
+      modeId: '501',
+      winnerId: 1,
+      players: [{ id: 1, name: 'Hunter', turnHistory }],
+    } as unknown as GameState
+
+    const summary = buildGameSummary(state)
+    expect(summary.players[0].turnHistory).toEqual(turnHistory)
   })
 
   it('captures the highest scoring round across all players in a countdown game', () => {

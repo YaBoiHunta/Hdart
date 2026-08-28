@@ -344,13 +344,26 @@ describe('multi-player continue-to-place', () => {
     expect(getStandings(state).map((p) => p.id)).toEqual([a.id, b.id, c.id, d.id])
   })
 
-  it('UNDO is a no-op immediately after a finish, in a game that continues', () => {
+  it('UNDO reaches back into a finish and un-finishes the player, since the game is still in progress', () => {
     let state = newGameAt501WithPlayers('A', 'B', 'C')
-    state = { ...state, players: [{ ...state.players[0], score: 20 }, state.players[1], state.players[2]] }
+    const [a] = state.players
+    state = {
+      ...state,
+      players: [{ ...state.players[0], score: 20 }, state.players[1], state.players[2]],
+      currentTurn: { ...state.currentTurn, startScore: 20 },
+    }
     state = throwDart(state, 20) // A finishes, game continues onto B
-    const afterFinish = state
+    expect(state.finishOrder).toEqual([a.id])
+    expect(state.winnerId).toBe(a.id)
+
     state = undo(state)
-    expect(state).toEqual(afterFinish)
+
+    expect(state.finishOrder).toEqual([])
+    expect(state.winnerId).toBeNull()
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].score).toBe(20)
+    expect(state.players[0].turnHistory).toHaveLength(0)
+    expect(state.currentTurn.throws).toHaveLength(1)
   })
 
   it('REMATCH after a placement game resets finishOrder and restores normal rotation', () => {
@@ -388,14 +401,101 @@ describe('undo', () => {
     expect(afterUndo).toEqual(state)
   })
 
-  it('cannot reach into a previous, already-completed turn', () => {
+  it('reaches into a previous, already-completed turn while the game is still in progress', () => {
     let state = newGameAt501WithPlayers('Hunter', 'Friend')
     state = throwDart(state, 20)
     state = throwDart(state, 20)
-    state = throwDart(state, 20) // Hunter's turn ends, Friend is now active
-    const afterHuntersTurn = state
-    state = undo(state) // should be a no-op: Friend's turn has no throws yet
-    expect(state).toEqual(afterHuntersTurn)
+    state = throwDart(state, 20) // Hunter's turn ends (60 points), Friend is now active
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.players[0].score).toBe(441)
+
+    state = undo(state) // Friend's turn has no throws yet -> reaches back into Hunter's turn
+
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].score).toBe(501)
+    expect(state.players[0].turnHistory).toHaveLength(0)
+    expect(state.currentTurn.throws).toHaveLength(3)
+    expect(state.turnOrderLog).toEqual([])
+
+    // Undoing one dart at a time from the reclaimed turn works exactly like
+    // same-turn undo, since it's now the current turn again.
+    state = undo(state)
+    expect(state.players[0].score).toBe(461) // one 20 remains
+    expect(state.currentTurn.throws).toHaveLength(2)
+  })
+
+  it('cannot reach into a previous turn once the game is over', () => {
+    let state = newGameAt501WithPlayers('Hunter', 'Friend')
+    state = { ...state, players: [{ ...state.players[0], score: 20 }, state.players[1]] }
+    state = throwDart(state, 20) // Hunter wins, game over (2-player game)
+    expect(isGameOver(state)).toBe(true)
+    const afterWin = state
+
+    state = undo(state)
+
+    expect(state).toEqual(afterWin)
+  })
+
+  it('chains back across two completed turns', () => {
+    let state = newGameAt501WithPlayers('A', 'B')
+    state = throwDart(throwDart(throwDart(state, 20), 20), 20) // A: 60 points, B's turn
+    state = throwDart(throwDart(throwDart(state, 19), 19), 19) // B: 57 points, A's turn again
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[1].score).toBe(444)
+
+    state = undo(state) // reach back into B's turn -> B's 3 darts are the current turn again
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.players[1].score).toBe(501)
+    expect(state.currentTurn.throws).toHaveLength(3)
+
+    // Drain B's reclaimed turn one dart at a time (same-turn undo), same as
+    // any other in-progress turn.
+    state = undo(state)
+    state = undo(state)
+    state = undo(state)
+    expect(state.currentTurn.throws).toHaveLength(0)
+
+    state = undo(state) // now reach back into A's turn
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].score).toBe(501)
+    expect(state.turnOrderLog).toEqual([])
+  })
+
+  it('undoing into a bust turn restores the full turn, including the darts thrown before the bust', () => {
+    let state = newGameAt501WithPlayers('Hunter', 'Friend')
+    state = {
+      ...state,
+      players: [{ ...state.players[0], score: 41 }, state.players[1]],
+      currentTurn: { ...state.currentTurn, startScore: 41 },
+    }
+    state = throwDart(state, 5) // 41 -> 36
+    state = throwDart(state, 10) // 36 -> 26
+    state = throwDart(state, 30) // busts: 26 - 30 < 0, reverts to startScore (41), Friend's turn
+    expect(state.players[0].score).toBe(41)
+    expect(state.currentPlayerIndex).toBe(1)
+
+    state = undo(state) // reach back into Hunter's bust turn
+
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].score).toBe(41)
+    expect(state.currentTurn.throws).toHaveLength(3)
+  })
+
+  it('is a no-op crossing into a turn recorded before cross-turn undo shipped (missing startScore)', () => {
+    let state = newGameAt501WithPlayers('Hunter', 'Friend')
+    state = throwDart(throwDart(throwDart(state, 20), 20), 20) // Hunter's turn ends, Friend is now active
+    // Simulate a state persisted by a previous build: strip the new field.
+    const legacyEntry = { ...state.players[0].turnHistory[0] }
+    delete (legacyEntry as { startScore?: number }).startScore
+    state = {
+      ...state,
+      players: [{ ...state.players[0], turnHistory: [legacyEntry] }, state.players[1]],
+    }
+    const beforeUndo = state
+
+    state = undo(state)
+
+    expect(state).toEqual(beforeUndo)
   })
 })
 

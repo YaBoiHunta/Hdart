@@ -104,8 +104,18 @@
 
 .game-history-players li {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   font-size: 15px;
+}
+
+.game-history-players li .history-toggle {
+  flex-basis: 100%;
+  text-align: left;
+}
+
+.game-history-players li .turn-history {
+  flex-basis: 100%;
 }
 
 .game-history-players li.won {
@@ -237,6 +247,24 @@
   }
 }
 
+/* Sound toggle */
+.sound-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
 /* Game board */
 .quit-btn {
   align-self: flex-end;
@@ -267,6 +295,34 @@
 }
 
 .quit-confirm-actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.undo-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 8px;
+  font-size: 14px;
+  grid-column: 1 / -1;
+}
+
+.undo-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.undo-confirm-actions button {
   border: none;
   border-radius: 8px;
   padding: 8px 12px;

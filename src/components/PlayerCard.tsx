@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { turnAverage } from '../game/gameReducer'
 import { ordinal } from '../game/ordinal'
+import { formatThrow } from '../game/format'
 import { isCountdownPlayer, isProgressionPlayer } from '../game/types'
 import type { Mode, Player, ThrowRecord } from '../game/types'
 import type { RefObject } from 'react'
@@ -164,11 +165,4 @@ function renderStatus(
     )
   }
   return null
-}
-
-function formatThrow(t: ThrowRecord) {
-  if (t.segment === 'OUT') return 'OUT'
-  if (t.multiplier === 2) return `D${t.segment}`
-  if (t.multiplier === 3) return `T${t.segment}`
-  return `${t.segment}`
 }

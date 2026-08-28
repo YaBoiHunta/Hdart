@@ -26,3 +26,6 @@ dist-ssr
 
 # Design docs & reference assets kept local, not in the public repo
 docs/
+
+# Audio kept local for now (some are copyrighted clips) - not in the public repo
+public/sounds/*.mp3
