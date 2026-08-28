@@ -1,5 +1,5 @@
 import { useEffect, useState, useReducer } from 'react'
-import { gameReducer, initialState, PHASES, ensurePlayerIdCounterAbove } from './game/gameReducer'
+import { gameReducer, initialState, PHASES, ensurePlayerIdCounterAbove, isGameOver } from './game/gameReducer'
 import { loadPersistedState, savePersistedState } from './game/persistence'
 import { buildGameSummary, appendGameResult } from './game/history'
 import type { GameState } from './game/types'
@@ -25,7 +25,16 @@ function initState(): GameState {
   const saved = loadPersistedState()
   if (!isUsableState(saved)) return initialState
   ensurePlayerIdCounterAbove(saved.players)
-  return saved
+  // finishOrder predates this field — a state persisted by a previous build
+  // won't have it. Backfill from winnerId so an already-won game stays over
+  // (and isn't silently resumable/scoreable again) after this upgrade.
+  const rawFinishOrder = (saved as { finishOrder?: unknown }).finishOrder
+  const finishOrder = Array.isArray(rawFinishOrder)
+    ? (rawFinishOrder as number[])
+    : typeof saved.winnerId === 'number'
+      ? [saved.winnerId]
+      : []
+  return { ...saved, finishOrder }
 }
 
 export default function App() {
@@ -38,15 +47,17 @@ export default function App() {
 
   useEffect(() => {
     // historyRecorded lives in persisted state (not a ref) so a page refresh
-    // right after a win can't re-trigger this and record the game twice.
-    if (state.winnerId && !state.historyRecorded) {
+    // right after the game ends can't re-trigger this and record it twice.
+    // Gated on isGameOver (not just winnerId) so a 3+ player game that keeps
+    // playing on for 2nd/3rd place isn't recorded until it actually finishes.
+    if (isGameOver(state) && !state.historyRecorded) {
       appendGameResult(buildGameSummary(state))
       dispatch({ type: 'MARK_HISTORY_RECORDED' })
     }
-    // Only the moment winnerId/historyRecorded changes matters here; state is
-    // read from the same render's closure, which is already up to date then.
+    // Only the moment finishOrder/winnerId/historyRecorded changes matters
+    // here; state is read from the same render's closure, already up to date.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.winnerId, state.historyRecorded])
+  }, [state.finishOrder, state.winnerId, state.historyRecorded])
 
   if (historyOpen) {
     return <HistoryScreen onBack={() => setHistoryOpen(false)} />

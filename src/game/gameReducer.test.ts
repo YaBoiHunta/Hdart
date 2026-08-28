@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { gameReducer, initialState, turnAverage, PHASES, ensurePlayerIdCounterAbove } from './gameReducer'
+import {
+  gameReducer,
+  initialState,
+  turnAverage,
+  PHASES,
+  ensurePlayerIdCounterAbove,
+  isGameOver,
+  getStandings,
+  placementOf,
+} from './gameReducer'
 import type {
   Action,
   CountdownPlayer,
@@ -157,6 +166,22 @@ describe('throwing darts & scoring math', () => {
     state = setMultiplier(state, 2)
     expect(state.activeMultiplier).toBe(1)
   })
+
+  it('bullseye (50) always scores exactly 50, ignoring an active multiplier', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    state = setMultiplier(state, 3)
+    state = throwDart(state, 50)
+    expect(state.players[0].score).toBe(451)
+    expect(state.activeMultiplier).toBe(1)
+  })
+
+  it('bullseye (50) is recorded with multiplier 1 regardless of the toggle', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    state = setMultiplier(state, 2)
+    state = throwDart(state, 50)
+    const [dart] = state.currentTurn.throws
+    expect(dart).toEqual({ segment: 50, multiplier: 1, value: 50 })
+  })
 })
 
 describe('turn progression', () => {
@@ -249,6 +274,101 @@ describe('win', () => {
     const afterWin = state
     state = throwDart(state, 5)
     expect(state).toEqual(afterWin)
+  })
+})
+
+describe('multi-player continue-to-place', () => {
+  it('3 players: removes the finisher from rotation and continues to full placement', () => {
+    let state = newGameAt501WithPlayers('A', 'B', 'C')
+    const [a, b, c] = state.players
+    state = { ...state, players: [{ ...a, score: 20 }, { ...b, score: 20 }, c] }
+
+    // A wins (1st) -> game must continue, turn skips straight to B.
+    state = throwDart(state, 20)
+    expect(state.finishOrder).toEqual([a.id])
+    expect(isGameOver(state)).toBe(false)
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(placementOf(state, a.id)).toBe(1)
+    expect(placementOf(state, b.id)).toBeNull()
+
+    // B wins (2nd) -> only C remains, game ends automatically without C throwing.
+    state = throwDart(state, 20)
+    expect(state.finishOrder).toEqual([a.id, b.id])
+    expect(isGameOver(state)).toBe(true)
+    expect(placementOf(state, a.id)).toBe(1)
+    expect(placementOf(state, b.id)).toBe(2)
+    expect(placementOf(state, c.id)).toBe(3)
+    expect(getStandings(state).map((p) => p.id)).toEqual([a.id, b.id, c.id])
+  })
+
+  it('4 players: turn rotation skips over already-finished players', () => {
+    let state = newGameAt501WithPlayers('A', 'B', 'C', 'D')
+    const [a, b, c, d] = state.players
+    const finishTurnNoScore = (s: CountdownGameState) =>
+      throwDart(throwDart(throwDart(s, 'OUT'), 'OUT'), 'OUT')
+
+    // A wins immediately.
+    state = { ...state, players: [{ ...a, score: 20 }, b, c, d] }
+    state = throwDart(state, 20)
+    expect(state.currentPlayerIndex).toBe(1) // B's turn
+
+    // B wins immediately.
+    state = { ...state, players: [state.players[0], { ...state.players[1], score: 20 }, c, d] }
+    state = throwDart(state, 20)
+    expect(state.currentPlayerIndex).toBe(2) // C's turn
+    expect(state.finishOrder).toEqual([a.id, b.id])
+
+    // C takes a normal (non-winning) turn.
+    state = finishTurnNoScore(state)
+    expect(state.currentPlayerIndex).toBe(3) // D's turn
+
+    // D takes a normal (non-winning) turn -> rotation must skip finished A
+    // and B, landing back on C.
+    state = finishTurnNoScore(state)
+    expect(state.currentPlayerIndex).toBe(2)
+
+    // C wins (3rd place) -> only D remains, game ends automatically.
+    state = {
+      ...state,
+      players: [
+        state.players[0],
+        state.players[1],
+        { ...state.players[2], score: 20 },
+        state.players[3],
+      ],
+    }
+    state = throwDart(state, 20)
+    expect(isGameOver(state)).toBe(true)
+    expect(state.finishOrder).toEqual([a.id, b.id, c.id])
+    expect(placementOf(state, d.id)).toBe(4)
+    expect(getStandings(state).map((p) => p.id)).toEqual([a.id, b.id, c.id, d.id])
+  })
+
+  it('UNDO is a no-op immediately after a finish, in a game that continues', () => {
+    let state = newGameAt501WithPlayers('A', 'B', 'C')
+    state = { ...state, players: [{ ...state.players[0], score: 20 }, state.players[1], state.players[2]] }
+    state = throwDart(state, 20) // A finishes, game continues onto B
+    const afterFinish = state
+    state = undo(state)
+    expect(state).toEqual(afterFinish)
+  })
+
+  it('REMATCH after a placement game resets finishOrder and restores normal rotation', () => {
+    let state = newGameAt501WithPlayers('A', 'B', 'C')
+    state = {
+      ...state,
+      players: [{ ...state.players[0], score: 20 }, { ...state.players[1], score: 20 }, state.players[2]],
+    }
+    state = throwDart(state, 20) // A wins
+    state = throwDart(state, 20) // B wins, game over
+    expect(isGameOver(state)).toBe(true)
+
+    state = dispatch(state, { type: 'REMATCH' })
+    expect(state.finishOrder).toEqual([])
+    expect(state.winnerId).toBeNull()
+    expect(isGameOver(state)).toBe(false)
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players.map((p) => p.score)).toEqual([501, 501, 501])
   })
 })
 

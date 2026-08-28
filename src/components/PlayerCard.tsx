@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { turnAverage } from '../game/gameReducer'
+import { ordinal } from '../game/ordinal'
 import { isCountdownPlayer, isProgressionPlayer } from '../game/types'
 import type { Mode, Player, ThrowRecord } from '../game/types'
 import type { RefObject } from 'react'
@@ -9,9 +10,10 @@ interface PlayerCardProps {
   mode: Mode
   isActive: boolean
   turnThrows: ThrowRecord[]
+  place?: number | null
 }
 
-export default function PlayerCard({ player, mode, isActive, turnThrows }: PlayerCardProps) {
+export default function PlayerCard({ player, mode, isActive, turnThrows, place = null }: PlayerCardProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const average = turnAverage(player)
   const hasHistory = player.turnHistory.length > 0
@@ -72,6 +74,7 @@ export default function PlayerCard({ player, mode, isActive, turnThrows }: Playe
     >
       <div className="player-card-top">
         <span className="player-name">{player.name}</span>
+        {place !== null && <span className="placement-badge">{ordinal(place)}</span>}
         <span className="player-average">
           Avg {average === null ? '—' : average.toFixed(1)}
         </span>

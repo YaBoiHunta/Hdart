@@ -34,6 +34,11 @@ export default function HistoryScreen({ onBack }: HistoryScreenProps) {
               <span>{game.modeLabel ?? game.modeId}</span>
               <span>{formatDate(game.finishedAt)}</span>
             </div>
+            {game.highestRound && (
+              <div className="game-history-highlight">
+                Best round: {game.highestRound.total} ({game.highestRound.playerName})
+              </div>
+            )}
             <ul className="game-history-players">
               {game.players.map((p, j) => (
                 <li key={j} className={p.won ? 'won' : ''}>

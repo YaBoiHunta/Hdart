@@ -1,6 +1,6 @@
 import { turnAverage } from './gameReducer'
 import { getModeById } from './modes'
-import type { GameHistoryEntry, GameHistoryPlayerSummary, GameState } from './types'
+import type { GameHistoryEntry, GameHistoryHighestRound, GameHistoryPlayerSummary, GameState } from './types'
 
 const STORAGE_KEY = 'hdart:history'
 const MAX_ENTRIES = 100
@@ -16,6 +16,12 @@ function isGameHistoryPlayerSummary(value: unknown): value is GameHistoryPlayerS
   )
 }
 
+function isGameHistoryHighestRound(value: unknown): value is GameHistoryHighestRound {
+  if (!value || typeof value !== 'object') return false
+  const h = value as Partial<GameHistoryHighestRound>
+  return typeof h.total === 'number' && typeof h.playerName === 'string'
+}
+
 function isGameHistoryEntry(value: unknown): value is GameHistoryEntry {
   if (!value || typeof value !== 'object') return false
   const entry = value as Partial<GameHistoryEntry>
@@ -24,8 +30,25 @@ function isGameHistoryEntry(value: unknown): value is GameHistoryEntry {
     typeof entry.modeLabel === 'string' &&
     (entry.modeId === null || typeof entry.modeId === 'string') &&
     Array.isArray(entry.players) &&
-    entry.players.every(isGameHistoryPlayerSummary)
+    entry.players.every(isGameHistoryPlayerSummary) &&
+    // highestRound predates this field — entries saved before it shipped
+    // won't have it at all, so treat "missing" the same as "null" rather
+    // than dropping otherwise-valid history entries.
+    (entry.highestRound === undefined ||
+      entry.highestRound === null ||
+      isGameHistoryHighestRound(entry.highestRound))
   )
+}
+
+function computeHighestRound(state: GameState, mode: ReturnType<typeof getModeById>): GameHistoryHighestRound | null {
+  if (!mode || mode.family !== 'countdown') return null
+  let best: GameHistoryHighestRound | null = null
+  for (const p of state.players) {
+    for (const t of p.turnHistory) {
+      if (!best || t.total > best.total) best = { total: t.total, playerName: p.name }
+    }
+  }
+  return best
 }
 
 export function buildGameSummary(state: GameState): GameHistoryEntry {
@@ -40,6 +63,7 @@ export function buildGameSummary(state: GameState): GameHistoryEntry {
       average: turnAverage(p),
       turns: p.turnHistory.length,
     })),
+    highestRound: computeHighestRound(state, mode),
   }
 }
 
@@ -47,7 +71,11 @@ export function loadHistory(): GameHistoryEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed.filter(isGameHistoryEntry) : []
+    return Array.isArray(parsed)
+      ? parsed
+          .filter(isGameHistoryEntry)
+          .map((e) => ({ ...e, highestRound: e.highestRound ?? null }))
+      : []
   } catch {
     return []
   }
