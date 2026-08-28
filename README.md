@@ -1,4 +1,4 @@
-# Hunter Darts
+# Downtime Darts
 
 A simple, mobile-friendly dart scoreboard for playing 301, 501, or Around the World with friends. Add players, pick a mode, and tap the segment you hit after each dart — the app tracks scores, turns, and busts (or targets, for Around the World) for you. The current game survives a refresh, and a "History" screen lists completed games (who won, mode, per-player average) — both stored locally in the browser, no account or backend required.
 

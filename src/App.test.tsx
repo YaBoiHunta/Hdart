@@ -233,6 +233,31 @@ describe('game history', () => {
     expect(screen.getByText('301')).toBeInTheDocument()
     expect(screen.getByText('Hunter (won)')).toBeInTheDocument()
   })
+
+  it('does not duplicate the entry if the page refreshes right after a win', async () => {
+    const user = userEvent.setup()
+    await startGame(user, { mode: '301' })
+
+    const triple20 = async () => {
+      await user.click(screen.getByRole('button', { name: 'Triple' }))
+      await user.click(screen.getByRole('button', { name: '20' }))
+    }
+    // 5x T20 (300) + a single 1 -> 301 - 301 = 0
+    await triple20()
+    await triple20()
+    await triple20()
+    await triple20()
+    await triple20()
+    await user.click(screen.getByRole('button', { name: '1' }))
+
+    expect(screen.getByText('Hunter wins!')).toBeInTheDocument()
+
+    cleanup() // simulate refreshing the page while still on the win screen
+    render(<App />)
+
+    const stored: unknown[] = JSON.parse(localStorage.getItem('hdart:history') ?? '[]')
+    expect(stored).toHaveLength(1)
+  })
 })
 
 describe('turn history', () => {

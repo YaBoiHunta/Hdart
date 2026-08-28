@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useReducer } from 'react'
+import { useEffect, useState, useReducer } from 'react'
 import { gameReducer, initialState, PHASES, ensurePlayerIdCounterAbove } from './game/gameReducer'
 import { loadPersistedState, savePersistedState } from './game/persistence'
 import { buildGameSummary, appendGameResult } from './game/history'
@@ -31,23 +31,22 @@ function initState(): GameState {
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState, initState)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const lastRecordedWinnerRef = useRef<number | null>(null)
 
   useEffect(() => {
     savePersistedState(state)
   }, [state])
 
   useEffect(() => {
-    if (state.winnerId && lastRecordedWinnerRef.current !== state.winnerId) {
-      lastRecordedWinnerRef.current = state.winnerId
+    // historyRecorded lives in persisted state (not a ref) so a page refresh
+    // right after a win can't re-trigger this and record the game twice.
+    if (state.winnerId && !state.historyRecorded) {
       appendGameResult(buildGameSummary(state))
-    } else if (!state.winnerId) {
-      lastRecordedWinnerRef.current = null
+      dispatch({ type: 'MARK_HISTORY_RECORDED' })
     }
-    // Only the moment winnerId changes matters here; state is read from the
-    // same render's closure, which is already up to date at that point.
+    // Only the moment winnerId/historyRecorded changes matters here; state is
+    // read from the same render's closure, which is already up to date then.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.winnerId])
+  }, [state.winnerId, state.historyRecorded])
 
   if (historyOpen) {
     return <HistoryScreen onBack={() => setHistoryOpen(false)} />

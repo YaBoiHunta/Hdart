@@ -25,6 +25,7 @@ export const initialState: GameState = {
   currentTurn: { throws: [], startScore: 0, startTargetIndex: 0 },
   activeMultiplier: 1,
   winnerId: null,
+  historyRecorded: false,
 }
 
 let nextPlayerId = 1
@@ -97,6 +98,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         currentTurn: initialTurnFor(mode),
         activeMultiplier: 1,
         winnerId: null,
+        historyRecorded: false,
       }
     }
 
@@ -163,8 +165,12 @@ export function gameReducer(state: GameState, action: Action): GameState {
         currentTurn: initialTurnFor(mode),
         activeMultiplier: 1,
         winnerId: null,
+        historyRecorded: false,
       }
     }
+
+    case 'MARK_HISTORY_RECORDED':
+      return { ...state, historyRecorded: true }
 
     default:
       return state

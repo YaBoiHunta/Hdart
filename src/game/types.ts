@@ -76,6 +76,7 @@ export interface GameState {
   currentTurn: CurrentTurn
   activeMultiplier: Multiplier
   winnerId: number | null
+  historyRecorded: boolean
 }
 
 export type Action =
@@ -89,6 +90,7 @@ export type Action =
   | { type: 'UNDO' }
   | { type: 'NEW_GAME' }
   | { type: 'REMATCH' }
+  | { type: 'MARK_HISTORY_RECORDED' }
 
 export interface GameHistoryPlayerSummary {
   name: string

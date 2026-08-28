@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Project context for AI-assisted development on Hunter Darts.
+Project context for AI-assisted development on Downtime Darts.
 
 ## What this is
 

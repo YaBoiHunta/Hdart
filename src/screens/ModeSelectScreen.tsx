@@ -10,7 +10,7 @@ interface ModeSelectScreenProps {
 export default function ModeSelectScreen({ dispatch, onShowHistory }: ModeSelectScreenProps) {
   return (
     <div className="screen mode-select">
-      <h1>Hunter Darts</h1>
+      <h1>Downtime Darts</h1>
       <p className="subtitle">Choose a game mode</p>
       <div className="mode-grid">
         {GAME_MODES.map((mode) => (
