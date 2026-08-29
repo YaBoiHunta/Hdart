@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import App from './App'
@@ -371,6 +371,64 @@ describe('game history', () => {
 
     const stored: unknown[] = JSON.parse(localStorage.getItem('hdart:history') ?? '[]')
     expect(stored).toHaveLength(1)
+  })
+
+  it('exports history as a downloadable JSON file', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        { finishedAt: 'game-1', modeId: '301', modeLabel: '301', players: [{ name: 'Hunter', won: true, average: 50, turns: 3 }], highestRound: null },
+      ]),
+    )
+
+    const createObjectURL = vi.fn(() => 'blob:mock-url')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL })
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'History' }))
+    await user.click(screen.getByRole('button', { name: 'Export JSON' }))
+
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+
+    clickSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
+  it('imports a history JSON file and merges new games without duplicating existing ones', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        { finishedAt: 'existing-game', modeId: '301', modeLabel: '301', players: [{ name: 'Hunter', won: true, average: 50, turns: 3 }], highestRound: null },
+      ]),
+    )
+
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'History' }))
+
+    const file = new File(
+      [
+        JSON.stringify([
+          { finishedAt: 'existing-game', modeId: '301', modeLabel: '301', players: [{ name: 'Hunter', won: true, average: 50, turns: 3 }], highestRound: null },
+          { finishedAt: 'imported-game', modeId: '501', modeLabel: '501', players: [{ name: 'Friend', won: true, average: 60, turns: 4 }], highestRound: null },
+        ]),
+      ],
+      'history.json',
+      { type: 'application/json' },
+    )
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, file)
+
+    expect(await screen.findByText('Imported 1 game (1 already had a copy)')).toBeInTheDocument()
+
+    const stored: { finishedAt: string }[] = JSON.parse(localStorage.getItem('hdart:history') ?? '[]')
+    expect(stored.map((e) => e.finishedAt).sort()).toEqual(['existing-game', 'imported-game'])
   })
 })
 
