@@ -122,3 +122,37 @@ export function appendGameResult(entry: GameHistoryEntry): void {
     // nice-to-have, so fail silently rather than breaking the game.
   }
 }
+
+export function exportHistoryJson(): string {
+  return JSON.stringify(loadHistory(), null, 2)
+}
+
+export interface ImportHistoryResult {
+  added: number
+  skipped: number
+}
+
+/**
+ * Merges history entries from an exported JSON file into the existing
+ * localStorage history. Entries are matched by finishedAt (their unique
+ * timestamp) so re-importing the same file, or a file with overlapping
+ * games from another device, doesn't create duplicates.
+ */
+export function importHistory(raw: unknown): ImportHistoryResult {
+  const incoming = Array.isArray(raw) ? raw.filter(isGameHistoryEntry) : []
+  const existing = loadHistory()
+  const existingTimestamps = new Set(existing.map((e) => e.finishedAt))
+
+  const toAdd = incoming.filter((e) => !existingTimestamps.has(e.finishedAt))
+  const merged = [...toAdd, ...existing]
+    .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
+    .slice(0, MAX_ENTRIES)
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+  } catch {
+    return { added: 0, skipped: incoming.length }
+  }
+
+  return { added: toAdd.length, skipped: incoming.length - toAdd.length }
+}

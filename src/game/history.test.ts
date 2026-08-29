@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { loadHistory, appendGameResult, buildGameSummary } from './history'
+import { loadHistory, appendGameResult, buildGameSummary, exportHistoryJson, importHistory } from './history'
 import type { GameHistoryEntry, GameState } from './types'
 
 beforeEach(() => {
@@ -130,6 +130,51 @@ describe('appendGameResult', () => {
     expect(history).toHaveLength(100)
     expect(history[0].finishedAt).toBe('game-104')
     expect(history[99].finishedAt).toBe('game-5')
+  })
+})
+
+describe('exportHistoryJson', () => {
+  it('serializes the current history as JSON', () => {
+    appendGameResult(makeEntry('game-1'))
+    const json = exportHistoryJson()
+    expect(JSON.parse(json)).toEqual(loadHistory())
+  })
+})
+
+describe('importHistory', () => {
+  it('adds new entries not already present', () => {
+    appendGameResult(makeEntry('existing'))
+    const result = importHistory([makeEntry('existing'), makeEntry('new-one')])
+    expect(result).toEqual({ added: 1, skipped: 1 })
+    const history = loadHistory()
+    expect(history.map((e) => e.finishedAt).sort()).toEqual(['existing', 'new-one'])
+  })
+
+  it('is idempotent — importing the same file twice adds nothing the second time', () => {
+    importHistory([makeEntry('a'), makeEntry('b')])
+    const result = importHistory([makeEntry('a'), makeEntry('b')])
+    expect(result).toEqual({ added: 0, skipped: 2 })
+    expect(loadHistory()).toHaveLength(2)
+  })
+
+  it('drops malformed entries and only reports valid ones in added/skipped counts', () => {
+    const result = importHistory([makeEntry('good'), { finishedAt: 'bad' }, 'not an entry', null])
+    expect(result).toEqual({ added: 1, skipped: 0 })
+    expect(loadHistory()).toHaveLength(1)
+  })
+
+  it('returns zero counts when given non-array input', () => {
+    expect(importHistory({ not: 'an array' })).toEqual({ added: 0, skipped: 0 })
+    expect(importHistory(null)).toEqual({ added: 0, skipped: 0 })
+  })
+
+  it('keeps the merged list sorted newest-first and capped at 100', () => {
+    for (let i = 0; i < 60; i++) appendGameResult(makeEntry(`existing-${i}`))
+    const incoming = Array.from({ length: 60 }, (_, i) => makeEntry(`imported-${i}`))
+    const result = importHistory(incoming)
+    expect(result.added).toBe(60)
+    const history = loadHistory()
+    expect(history).toHaveLength(100)
   })
 })
 
