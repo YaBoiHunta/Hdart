@@ -1,0 +1,153 @@
+.card-round-banner {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.card-reveal {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-reveal-face {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.card-reveal-name {
+  font-weight: 600;
+}
+
+.card-reveal-desc {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.active-jokers {
+  margin-bottom: 12px;
+}
+
+.active-jokers-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.active-jokers-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.active-joker-chip {
+  background: var(--accent-active);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.card-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.card-player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.card-player-row.active {
+  border-color: var(--accent);
+}
+
+.card-player-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.card-player-total {
+  color: var(--text-dim);
+}
+
+.card-player-turn-preview {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.card-number-pad {
+  margin-top: auto;
+}
+
+.card-multiplier-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.card-multiplier-btn {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.card-multiplier-btn.active {
+  color: var(--accent);
+  background: var(--accent-active);
+  border-color: var(--accent);
+}
+
+.card-number-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.card-number-btn {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 14px 0;
+  font-size: 16px;
+}
+
+.card-number-btn.bull,
+.card-number-btn.bullseye {
+  color: var(--accent);
+}
+
+.card-number-btn.out {
+  color: var(--danger);
+}
+
+.card-number-btn.undo:disabled {
+  opacity: 0.4;
+}
+
+.card-game-over {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+}
