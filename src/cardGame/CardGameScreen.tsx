@@ -8,11 +8,14 @@ import './CardGame.css'
 
 interface CardGameScreenProps {
   onExit: () => void
+  // Injectable deck shuffle source, defaulted to Math.random for real play.
+  // Lets tests pass a fixed generator for deterministic card draws.
+  random?: () => number
 }
 
-export default function CardGameScreen({ onExit }: CardGameScreenProps) {
+export default function CardGameScreen({ onExit, random }: CardGameScreenProps) {
   const { state, addPlayer, removePlayer, startGame, rematch, newGame, setMultiplier, throwDart, undoDart } =
-    useCardGame()
+    useCardGame(random)
   const [name, setName] = useState('')
 
   function handleAdd() {
