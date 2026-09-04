@@ -50,11 +50,39 @@
 }
 
 .active-joker-chip {
-  background: var(--accent-active);
-  border: 1px solid var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 12px;
+  cursor: pointer;
+}
+
+.active-joker-chip.active {
+  color: var(--accent);
+  background: var(--accent-active);
+  border-color: var(--accent);
+}
+
+.active-joker-detail {
+  margin-top: 8px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.active-joker-detail-name {
+  font-weight: 600;
+}
+
+.active-joker-detail-desc {
+  color: var(--text-dim);
+  font-size: 13px;
 }
 
 .card-player-list {
@@ -64,18 +92,24 @@
   margin-bottom: 16px;
 }
 
-.card-player-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.card-player-block {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.card-player-row.active {
+.card-player-block.active {
   border-color: var(--accent);
+}
+
+.card-player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .card-player-name {
@@ -90,6 +124,24 @@
 .card-player-turn-preview {
   color: var(--accent);
   font-size: 12px;
+}
+
+.card-dart-slots {
+  display: flex;
+  gap: 6px;
+}
+
+.card-dart-slot {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--text-dim);
 }
 
 .card-number-pad {

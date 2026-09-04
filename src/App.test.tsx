@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import App from './App'
 
@@ -430,6 +430,82 @@ describe('game history', () => {
     const stored: { finishedAt: string }[] = JSON.parse(localStorage.getItem('hdart:history') ?? '[]')
     expect(stored.map((e) => e.finishedAt).sort()).toEqual(['existing-game', 'imported-game'])
   })
+
+  it('Back from the History screen returns to mode select', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'History' }))
+    expect(screen.getByText('No games finished yet.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '← Back' }))
+    expect(screen.getByText('Choose a game mode')).toBeInTheDocument()
+  })
+
+  it('clicking Import JSON opens the file picker', async () => {
+    const user = userEvent.setup()
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'History' }))
+    await user.click(screen.getByRole('button', { name: 'Import JSON' }))
+    expect(clickSpy).toHaveBeenCalled()
+    clickSpy.mockRestore()
+  })
+
+  it('shows an error message when the selected file is not valid JSON', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'History' }))
+
+    const file = new File(['not valid json{{{'], 'history.json', { type: 'application/json' })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, file)
+
+    expect(
+      await screen.findByText('Could not read that file — is it a Downtime Darts history export?'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a "no valid games" message when the file parses but contains nothing usable', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'History' }))
+
+    const file = new File([JSON.stringify([{ not: 'a valid entry' }])], 'history.json', {
+      type: 'application/json',
+    })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, file)
+
+    expect(await screen.findByText('No valid games found in that file.')).toBeInTheDocument()
+  })
+})
+
+describe('card game entry point', () => {
+  it('opens Joker Draw from mode select and exits back to it', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Joker Draw (Beta)' }))
+    expect(screen.getByText('Joker Draw')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '← Back' }))
+    expect(screen.getByText('Choose a game mode')).toBeInTheDocument()
+  })
+})
+
+describe('sound toggle', () => {
+  it('mutes and unmutes, persisting the preference', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const toggle = screen.getByRole('button', { name: 'Mute sound' })
+    expect(toggle).toHaveTextContent('🔊')
+
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Unmute sound' })).toHaveTextContent('🔇')
+
+    await user.click(screen.getByRole('button', { name: 'Unmute sound' }))
+    expect(screen.getByRole('button', { name: 'Mute sound' })).toHaveTextContent('🔊')
+  })
 })
 
 describe('turn history', () => {
@@ -497,6 +573,42 @@ describe('persistence', () => {
     render(<App />)
     expect(screen.getByRole('button', { name: '301' })).toBeInTheDocument()
   })
+
+  it('backfills finishOrder from winnerId for a game persisted before finishOrder existed', () => {
+    localStorage.setItem(
+      'hdart:game-state',
+      JSON.stringify({
+        phase: 'game',
+        modeId: '301',
+        players: [{ id: 1, name: 'Hunter', score: 0, turnHistory: [{ throws: [], total: 301, bust: false }] }],
+        currentPlayerIndex: 0,
+        currentTurn: { throws: [], startScore: 0, startTargetIndex: 0 },
+        activeMultiplier: 1,
+        winnerId: 1,
+        // no finishOrder, no turnOrderLog — this is what a save from before
+        // those fields existed looks like.
+      }),
+    )
+    render(<App />)
+    expect(screen.getByText('Hunter wins!')).toBeInTheDocument()
+  })
+
+  it('defaults finishOrder to empty when neither finishOrder nor winnerId is present', () => {
+    localStorage.setItem(
+      'hdart:game-state',
+      JSON.stringify({
+        phase: 'game',
+        modeId: '301',
+        players: [{ id: 1, name: 'Hunter', score: 441, turnHistory: [] }],
+        currentPlayerIndex: 0,
+        currentTurn: { throws: [], startScore: 441, startTargetIndex: 0 },
+        activeMultiplier: 1,
+        winnerId: null,
+      }),
+    )
+    render(<App />)
+    expect(screen.getByText("Hunter's turn")).toBeInTheDocument()
+  })
 })
 
 describe('around the world', () => {
@@ -525,5 +637,19 @@ describe('around the world', () => {
     await user.click(screen.getByRole('button', { name: '25' }))
 
     expect(screen.getByText('Hunter wins!')).toBeInTheDocument()
+  })
+})
+
+describe('number pad flash animation', () => {
+  it('clears its own flash class when the flash animation ends', async () => {
+    const user = userEvent.setup()
+    await startGame(user)
+
+    const button = screen.getByRole('button', { name: '20' })
+    await user.click(button)
+    expect(button.className).toContain('flash')
+
+    fireEvent.animationEnd(button)
+    expect(button.className).not.toContain('flash')
   })
 })

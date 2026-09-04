@@ -1,8 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useCardGame, ROUNDS } from './useCardGame'
-import { createShuffledDeck } from './deck'
+import { createShuffledDeck, drawCard } from './deck'
 import { JOKER_TABLE } from './jokers'
+
+vi.mock('./deck', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./deck')>()
+  return { ...actual, drawCard: vi.fn(actual.drawCard) }
+})
 
 // A fixed "random" source (always 0) makes createShuffledDeck's draw order
 // reproducible across the hook and the assertions, without depending on
@@ -82,6 +87,48 @@ describe('useCardGame', () => {
     expect(result.current.state.players[0].total).toBe(0)
   })
 
+  it('startGame/rematch are no-ops with no players', () => {
+    // Not reachable through the UI (Start Game is disabled with no players)
+    // — beginPlaying itself guards against it.
+    const { result } = renderHook(() => useCardGame(fixedRandom))
+    act(() => result.current.startGame())
+    expect(result.current.state.stage).toBe('setup')
+
+    act(() => result.current.rematch())
+    expect(result.current.state.stage).toBe('setup')
+  })
+
+  it('startGame is a no-op if the deck is somehow empty from the start', () => {
+    // Not reachable through real play (createShuffledDeck always returns a
+    // full 52-card deck) — beginPlaying's own defensive guard.
+    vi.mocked(drawCard).mockReturnValueOnce({ card: null, rest: [] })
+    const { result } = renderHook(() => useCardGame(fixedRandom))
+    act(() => result.current.addPlayer('Alice'))
+    act(() => result.current.startGame())
+    expect(result.current.state.stage).toBe('setup')
+  })
+
+  it('setMultiplier toggles the same multiplier back off to 1', () => {
+    const { result } = renderHook(() => useCardGame(fixedRandom))
+    act(() => result.current.addPlayer('Alice'))
+    act(() => result.current.startGame())
+
+    act(() => result.current.setMultiplier(3))
+    expect(result.current.state.multiplier).toBe(3)
+
+    act(() => result.current.setMultiplier(3))
+    expect(result.current.state.multiplier).toBe(1)
+  })
+
+  it('throwDart is a no-op when not in the playing stage', () => {
+    // Not reachable through the UI (the number pad only renders during
+    // 'playing') — throwDart itself guards against it.
+    const { result } = renderHook(() => useCardGame(fixedRandom))
+    act(() => result.current.addPlayer('Alice'))
+    act(() => result.current.throwDart(20)) // still in 'setup' stage
+    expect(result.current.state.currentTurnDarts).toHaveLength(0)
+  })
+
   it('undo is a no-op with nothing thrown yet this turn', () => {
     const { result } = renderHook(() => useCardGame(fixedRandom))
     act(() => result.current.addPlayer('Alice'))
@@ -125,6 +172,27 @@ describe('useCardGame', () => {
     expect(result.current.state.players[0].total).toBe(0)
     expect(result.current.state.players[0].turns).toHaveLength(0)
     expect(result.current.state.players.map((p) => p.name)).toEqual(['Alice'])
+  })
+
+  it('ends the game early if the deck unexpectedly runs out mid-game', () => {
+    const { result } = renderHook(() => useCardGame(fixedRandom))
+    act(() => result.current.addPlayer('Alice'))
+    act(() => result.current.startGame()) // consumes the real (mocked-passthrough) initial draw
+
+    // The next draw (round 1 -> round 2) reports the deck as empty, exercising
+    // the defensive early-finish path without needing to exhaust all 52 cards
+    // through real play.
+    vi.mocked(drawCard).mockReturnValueOnce({ card: null, rest: [] })
+
+    act(() => {
+      result.current.throwDart(1)
+      result.current.throwDart(1)
+      result.current.throwDart(1)
+    })
+
+    expect(result.current.state.stage).toBe('finished')
+    expect(result.current.state.round).toBe(1)
+    expect(result.current.state.players[0].turns).toHaveLength(1)
   })
 
   it('newGame clears the roster back to setup', () => {

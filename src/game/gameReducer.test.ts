@@ -497,6 +497,205 @@ describe('undo', () => {
 
     expect(state).toEqual(beforeUndo)
   })
+
+  it('is a no-op if the previous player in the turn order log no longer exists', () => {
+    // Not reachable through normal play (players are never removed mid-game) —
+    // guards a turnOrderLog entry that has gone stale.
+    let state = newGameAt501WithPlayers('Hunter', 'Friend')
+    state = throwDart(throwDart(throwDart(state, 20), 20), 20) // Hunter's turn ends, Friend is now active
+    state = { ...state, turnOrderLog: [99] } // no player with index 99
+    const beforeUndo = state
+
+    state = undo(state)
+
+    expect(state).toEqual(beforeUndo)
+  })
+
+  it('is a no-op if the previous player in the turn order log has no completed turns', () => {
+    // Not reachable through normal play (a turnOrderLog entry is only added
+    // when that player's turn completes) — guards an inconsistent state.
+    let state = newGameAt501WithPlayers('Hunter', 'Friend')
+    state = throwDart(throwDart(throwDart(state, 20), 20), 20) // Hunter's turn ends, Friend is now active
+    state = {
+      ...state,
+      players: [{ ...state.players[0], turnHistory: [] }, state.players[1]],
+    }
+    const beforeUndo = state
+
+    state = undo(state)
+
+    expect(state).toEqual(beforeUndo)
+  })
+
+  it('reassigns winnerId to the next-earliest finisher when the winner-in-1st is undone', () => {
+    // isGameOver requires at least 2 unfinished players to stay false (so the
+    // UNDO dispatch isn't gated before it even reaches this logic) — 4
+    // players with 2 finished, 2 still playing.
+    let state = newGameAt501WithPlayers('Hunter', 'Friend', 'Buddy', 'Chris')
+    const [hunter, friend, buddy, chris] = state.players
+
+    state = {
+      ...state,
+      players: [
+        {
+          ...hunter,
+          score: 0,
+          turnHistory: [
+            { throws: [], total: 501, bust: false, startScore: 501, startTargetIndex: 0 },
+          ],
+        },
+        {
+          ...friend,
+          score: 0,
+          turnHistory: [
+            { throws: [], total: 501, bust: false, startScore: 501, startTargetIndex: 0 },
+          ],
+        },
+        buddy,
+        chris,
+      ],
+      finishOrder: [hunter.id, friend.id],
+      winnerId: hunter.id,
+      turnOrderLog: [0], // Hunter (index 0) is the reachable "previous" turn
+      currentTurn: { throws: [], startScore: buddy.score, startTargetIndex: 0 },
+      currentPlayerIndex: 2,
+    }
+    expect(isGameOver(state)).toBe(false)
+
+    state = undo(state)
+
+    expect(state.finishOrder).toEqual([friend.id])
+    expect(state.winnerId).toBe(friend.id)
+    expect(state.players[0].score).toBe(501)
+  })
+
+  it('reassigns winnerId to null when undoing the only finisher', () => {
+    let state = newGameAt501WithPlayers('Hunter', 'Friend', 'Buddy')
+    const [hunter, friend, buddy] = state.players
+
+    state = {
+      ...state,
+      players: [
+        {
+          ...hunter,
+          score: 0,
+          turnHistory: [
+            { throws: [], total: 501, bust: false, startScore: 501, startTargetIndex: 0 },
+          ],
+        },
+        friend,
+        buddy,
+      ],
+      finishOrder: [hunter.id],
+      winnerId: hunter.id,
+      turnOrderLog: [0],
+      currentTurn: { throws: [], startScore: friend.score, startTargetIndex: 0 },
+      currentPlayerIndex: 1,
+    }
+    expect(isGameOver(state)).toBe(false)
+
+    state = undo(state)
+
+    expect(state.finishOrder).toEqual([])
+    expect(state.winnerId).toBeNull()
+  })
+
+  it('undoing a non-winning finisher removes them from finishOrder without touching winnerId', () => {
+    let state = newGameAt501WithPlayers('Hunter', 'Friend', 'Buddy', 'Chris')
+    const [hunter, friend, buddy, chris] = state.players
+
+    state = {
+      ...state,
+      players: [
+        {
+          ...hunter,
+          score: 0,
+          turnHistory: [
+            { throws: [], total: 501, bust: false, startScore: 501, startTargetIndex: 0 },
+          ],
+        },
+        {
+          ...friend,
+          score: 0,
+          turnHistory: [
+            { throws: [], total: 501, bust: false, startScore: 501, startTargetIndex: 0 },
+          ],
+        },
+        buddy,
+        chris,
+      ],
+      finishOrder: [hunter.id, friend.id],
+      winnerId: hunter.id,
+      turnOrderLog: [1], // Friend (index 1) is the reachable "previous" turn, not the winner
+      currentTurn: { throws: [], startScore: buddy.score, startTargetIndex: 0 },
+      currentPlayerIndex: 2,
+    }
+    expect(isGameOver(state)).toBe(false)
+
+    state = undo(state)
+
+    expect(state.finishOrder).toEqual([hunter.id])
+    expect(state.winnerId).toBe(hunter.id) // unchanged: Friend wasn't the winner
+    expect(state.players[1].score).toBe(501)
+  })
+})
+
+describe('invalid mode defensive branches', () => {
+  // Not reachable through normal play (SELECT_MODE always sets a real mode
+  // id, and START_GAME requires one) — these guard a modeId that has gone
+  // stale or corrupted underneath an in-progress game.
+  it('THROW_DART is a no-op if the mode cannot be resolved', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    state = { ...state, modeId: 'not-a-real-mode' }
+    const before = state
+    expect(throwDart(state, 20)).toEqual(before)
+  })
+
+  it('UNDO is a no-op if the mode cannot be resolved', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    state = throwDart(state, 20)
+    state = { ...state, modeId: 'not-a-real-mode' }
+    const before = state
+    expect(undo(state)).toEqual(before)
+  })
+
+  it('REMATCH is a no-op if the mode cannot be resolved', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    state = { ...state, modeId: 'not-a-real-mode' }
+    const before = state
+    expect(dispatch(state, { type: 'REMATCH' })).toEqual(before)
+  })
+
+  it('THROW_DART is a no-op in a countdown game if the active player is not shaped like a countdown player', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    // Not reachable through normal play (every player in a countdown-family
+    // game always has a `score`) — swap in a progression-shaped player.
+    state = { ...state, players: [{ id: state.players[0].id, name: 'Hunter', targetIndex: 0, turnHistory: [] }] } as unknown as typeof state
+    const before = state
+    expect(dispatch(state, { type: 'THROW_DART', segment: 20 })).toEqual(before)
+  })
+
+  it('THROW_DART is a no-op in a progression game if the active player is not shaped like a progression player', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    // Not reachable through normal play — swap in a countdown-shaped player.
+    state = { ...state, players: [{ id: state.players[0].id, name: 'Hunter', score: 501, turnHistory: [] }] } as unknown as typeof state
+    const before = state
+    expect(dispatch(state, { type: 'THROW_DART', segment: 1 })).toEqual(before)
+  })
+
+  it('same-turn UNDO leaves the player untouched if they are shaped like neither family (mode/player mismatch)', () => {
+    let state = newGameAt501WithPlayers('Hunter')
+    state = throwDart(state, 20)
+    // Not reachable through normal play — swap in a player with neither
+    // `score` nor `targetIndex`, in a countdown-family game.
+    const oddPlayer = { id: state.players[0].id, name: 'Hunter', turnHistory: [] } as unknown as (typeof state.players)[number]
+    state = { ...state, players: [oddPlayer] }
+
+    const result = undo(state)
+
+    expect(result.players[0]).toEqual(oddPlayer) // untouched: neither branch applied
+    expect(result.currentTurn.throws).toHaveLength(0)
+  })
 })
 
 describe('turnAverage', () => {
@@ -587,5 +786,35 @@ describe('around the world', () => {
     expect(entry.bust).toBe(false)
     expect(entry.total).toBe(2)
     expect(entry.throws).toHaveLength(3)
+  })
+
+  it('reaches back into a previous, already-completed turn, restoring targetIndex', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter', 'Friend')
+    state = throwDart(throwDart(throwDart(state, 1), 2), 3) // Hunter: 1,2,3 all hit -> targetIndex 3, Friend is now active
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.players[0].targetIndex).toBe(3)
+
+    state = undo(state) // Friend's turn has no throws yet -> reaches back into Hunter's turn
+
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].targetIndex).toBe(0)
+    expect(state.players[0].turnHistory).toHaveLength(0)
+    expect(state.currentTurn.throws).toHaveLength(3)
+  })
+
+  it('same-turn undo recomputes targetIndex correctly when a miss is among the remaining darts', () => {
+    let state = newAroundTheWorldGameWithPlayers('Hunter')
+    state = throwDart(state, 7) // miss -> targetIndex stays 0
+    state = throwDart(state, 1) // hit -> targetIndex 1
+    state = undo(state) // removes the 2nd dart, replays [miss] -> targetIndex stays 0
+    expect(state.players[0].targetIndex).toBe(0)
+  })
+})
+
+describe('unknown action', () => {
+  it('returns state unchanged for an action type the reducer does not recognize', () => {
+    const state = newGameAt501WithPlayers('Hunter')
+    const unknownAction = { type: 'NOT_A_REAL_ACTION' } as unknown as Action
+    expect(gameReducer(state, unknownAction)).toBe(state)
   })
 })

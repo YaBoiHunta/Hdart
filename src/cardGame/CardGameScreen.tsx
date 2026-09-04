@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import { useCardGame, ROUNDS } from './useCardGame'
 import { cardLabel } from './deck'
+import { formatCardDart } from './format'
 import { getCardStandings } from './standings'
 import { ordinal } from '../game/ordinal'
 import CardNumberPad from './CardNumberPad'
@@ -17,6 +18,7 @@ export default function CardGameScreen({ onExit, random }: CardGameScreenProps) 
   const { state, addPlayer, removePlayer, startGame, rematch, newGame, setMultiplier, throwDart, undoDart } =
     useCardGame(random)
   const [name, setName] = useState('')
+  const [expandedJokerIndex, setExpandedJokerIndex] = useState<number | null>(null)
 
   function handleAdd() {
     addPlayer(name)
@@ -125,11 +127,26 @@ export default function CardGameScreen({ onExit, random }: CardGameScreenProps) 
           <span className="active-jokers-label">Active jokers</span>
           <div className="active-jokers-list">
             {state.activeJokers.map((joker, i) => (
-              <span className="active-joker-chip" key={`${joker.card.rank}-${joker.card.suit}-${i}`}>
+              <button
+                type="button"
+                className={`active-joker-chip${i === expandedJokerIndex ? ' active' : ''}`}
+                key={`${joker.card.rank}-${joker.card.suit}-${i}`}
+                onClick={() => setExpandedJokerIndex(expandedJokerIndex === i ? null : i)}
+              >
                 {cardLabel(joker.card)} {joker.name}
-              </span>
+              </button>
             ))}
           </div>
+          {expandedJokerIndex !== null && (
+            <div className="active-joker-detail">
+              <span className="active-joker-detail-name">
+                {state.activeJokers[expandedJokerIndex].name}
+              </span>
+              <span className="active-joker-detail-desc">
+                {state.activeJokers[expandedJokerIndex].description}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -137,11 +154,25 @@ export default function CardGameScreen({ onExit, random }: CardGameScreenProps) 
 
       <div className="card-player-list">
         {state.players.map((p, i) => (
-          <div key={p.id} className={`card-player-row${i === state.currentPlayerIndex ? ' active' : ''}`}>
-            <span className="card-player-name">{p.name}</span>
-            <span className="card-player-total">{p.total} pts</span>
+          <div key={p.id} className={`card-player-block${i === state.currentPlayerIndex ? ' active' : ''}`}>
+            <div className="card-player-row">
+              <span className="card-player-name">{p.name}</span>
+              <span className="card-player-total">{p.total} pts</span>
+              {i === state.currentPlayerIndex && (
+                <span className="card-player-turn-preview">this turn: {turnRawSoFar}</span>
+              )}
+            </div>
             {i === state.currentPlayerIndex && (
-              <span className="card-player-turn-preview">this turn: {turnRawSoFar}</span>
+              <div className="card-dart-slots">
+                {[0, 1, 2].map((slot) => {
+                  const d = state.currentTurnDarts[slot]
+                  return (
+                    <div key={slot} className="card-dart-slot">
+                      {d ? formatCardDart(d) : ''}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         ))}
