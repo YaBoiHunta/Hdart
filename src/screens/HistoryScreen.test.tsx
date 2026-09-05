@@ -56,10 +56,86 @@ describe('HistoryScreen', () => {
     )
     render(<HistoryScreen onBack={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /Rounds \(2\)/ }))
+    await user.click(screen.getByRole('button', { name: 'Detailed ▼' }))
     expect(screen.getByText('BUST')).toBeInTheDocument()
     expect(screen.getByText('BUST').closest('li')?.className).toContain('bust')
     expect(screen.getByText('Turn 1').closest('li')?.className).not.toContain('bust')
+
+    // New per-player stats shown in the expanded panel (countdown-family game).
+    expect(screen.getByText('First-9 avg: 10.0')).toBeInTheDocument()
+    expect(screen.getByText('Worst turn: 0 (bust)')).toBeInTheDocument()
+    expect(screen.getByText('Bust rate: 50%')).toBeInTheDocument()
+    expect(screen.getByText('Won in 2 turns / 2 darts')).toBeInTheDocument()
+  })
+
+  it('singularizes "turn" and "dart" when the winner needed exactly one of each', async () => {
+    const user = userEvent.setup()
+    appendGameResult(
+      makeEntry({
+        players: [
+          {
+            name: 'Hunter',
+            won: true,
+            average: 50,
+            turns: 1,
+            turnHistory: [{ throws: [{ segment: 25, multiplier: 2, value: 50 }], total: 50, bust: false }],
+          },
+          { name: 'Friend', won: false, average: null, turns: 0, turnHistory: [] },
+        ],
+      }),
+    )
+    render(<HistoryScreen onBack={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Detailed ▼' }))
+    expect(screen.getByText('Won in 1 turn / 1 dart')).toBeInTheDocument()
+  })
+
+  it('does not show a "Won in" line for a non-winning player', async () => {
+    const user = userEvent.setup()
+    appendGameResult(
+      makeEntry({
+        players: [
+          { name: 'Hunter', won: true, average: 50, turns: 3, turnHistory: [] },
+          {
+            name: 'Friend',
+            won: false,
+            average: 20,
+            turns: 1,
+            turnHistory: [{ throws: [{ segment: 20, multiplier: 1, value: 20 }], total: 20, bust: false }],
+          },
+        ],
+      }),
+    )
+    render(<HistoryScreen onBack={vi.fn()} />)
+
+    const friendRow = screen.getByText('Friend').closest('li') as HTMLElement
+    await user.click(within(friendRow).getByRole('button', { name: 'Detailed ▼' }))
+    expect(within(friendRow).queryByText(/Won in/)).not.toBeInTheDocument()
+  })
+
+  it('hides bust rate for a progression-family (Around the World) game', async () => {
+    const user = userEvent.setup()
+    appendGameResult(
+      makeEntry({
+        modeId: 'around-the-world',
+        modeLabel: 'Around the World',
+        players: [
+          {
+            name: 'Hunter',
+            won: true,
+            average: 2,
+            turns: 1,
+            turnHistory: [{ throws: [{ segment: 1, multiplier: 1, value: 1 }], total: 1, bust: false }],
+          },
+        ],
+      }),
+    )
+    render(<HistoryScreen onBack={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Detailed ▼' }))
+    expect(screen.getByText('First-9 avg: 1.0')).toBeInTheDocument()
+    expect(screen.queryByText(/Bust rate/)).not.toBeInTheDocument()
+    expect(screen.getByText('Won in 1 turn / 1 dart')).toBeInTheDocument()
   })
 
   it('falls back to modeId as the label, and to an empty rounds list, when data predates those fields', () => {
@@ -83,8 +159,8 @@ describe('HistoryScreen', () => {
     return import('./HistoryScreen').then(({ default: MockedHistoryScreen }) => {
       render(<MockedHistoryScreen onBack={vi.fn()} />)
       expect(screen.getByText('legacy-mode')).toBeInTheDocument()
-      // No rounds toggle: an empty (fallback) turnHistory means rounds.length is 0.
-      expect(screen.queryByRole('button', { name: /Rounds/ })).not.toBeInTheDocument()
+      // No detail toggle: an empty (fallback) turnHistory means rounds.length is 0.
+      expect(screen.queryByRole('button', { name: /Detailed/ })).not.toBeInTheDocument()
       vi.doUnmock('../game/history')
     })
   })

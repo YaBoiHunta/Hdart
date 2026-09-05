@@ -133,7 +133,7 @@
   text-align: left;
 }
 
-.game-history-players li .turn-history {
+.game-history-players li .history-detail {
   flex-basis: 100%;
 }
 
@@ -489,6 +489,17 @@
   color: var(--text-dim);
   font-size: 12px;
   padding: 8px 0 0;
+}
+
+.history-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
 .turn-history {

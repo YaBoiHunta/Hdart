@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { loadHistory, exportHistoryJson, importHistory } from '../game/history'
 import { formatThrow } from '../game/format'
+import { getModeById } from '../game/modes'
+import { firstNAverage, worstTurn, bustRate, dartsThrown } from '../game/stats'
 
 interface HistoryScreenProps {
   onBack: () => void
@@ -95,57 +97,81 @@ export default function HistoryScreen({ onBack }: HistoryScreenProps) {
       )}
 
       <ul className="game-history-list">
-        {history.map((game, i) => (
-          <li key={i} className="game-history-entry">
-            <div className="game-history-meta">
-              <span>{game.modeLabel ?? game.modeId}</span>
-              <span>{formatDate(game.finishedAt)}</span>
-            </div>
-            {game.highestRound && (
-              <div className="game-history-highlight">
-                Best round: {game.highestRound.total} ({game.highestRound.playerName})
+        {history.map((game, i) => {
+          const isCountdown = getModeById(game.modeId)?.family === 'countdown'
+          return (
+            <li key={i} className="game-history-entry">
+              <div className="game-history-meta">
+                <span>{game.modeLabel ?? game.modeId}</span>
+                <span>{formatDate(game.finishedAt)}</span>
               </div>
-            )}
-            <ul className="game-history-players">
-              {game.players.map((p, j) => {
-                const rowKey = `${i}-${j}`
-                const rounds = p.turnHistory ?? []
-                const rowOpen = openRows.has(rowKey)
-                return (
-                  <li key={j} className={p.won ? 'won' : ''}>
-                    <span>
-                      {p.name}
-                      {p.won ? ' (won)' : ''}
-                    </span>
-                    <span>{p.average === null ? '—' : `avg ${p.average.toFixed(1)}`}</span>
-                    {rounds.length > 0 && (
-                      <button className="history-toggle" onClick={() => toggleRow(rowKey)}>
-                        {rowOpen ? 'Hide rounds ▲' : `Rounds (${rounds.length}) ▼`}
-                      </button>
-                    )}
-                    {rowOpen && (
-                      <ul className="turn-history">
-                        {rounds.map((t, k) => (
-                          <li key={k} className={t.bust ? 'bust' : ''}>
-                            <span className="turn-history-label">Turn {k + 1}</span>
-                            <span className="turn-history-darts">
-                              {t.throws.map((dart, d) => (
-                                <span key={d} className="turn-history-dart">
-                                  {formatThrow(dart)}
+              {game.highestRound && (
+                <div className="game-history-highlight">
+                  Best round: {game.highestRound.total} ({game.highestRound.playerName})
+                </div>
+              )}
+              <ul className="game-history-players">
+                {game.players.map((p, j) => {
+                  const rowKey = `${i}-${j}`
+                  const rounds = p.turnHistory ?? []
+                  const rowOpen = openRows.has(rowKey)
+                  const first9 = firstNAverage(rounds)
+                  const worst = worstTurn(rounds)
+                  const busts = bustRate(rounds)
+                  return (
+                    <li key={j} className={p.won ? 'won' : ''}>
+                      <span>
+                        {p.name}
+                        {p.won ? ' (won)' : ''}
+                      </span>
+                      <span>{p.average === null ? '—' : `avg ${p.average.toFixed(1)}`}</span>
+                      {rounds.length > 0 && (
+                        <button className="history-toggle" onClick={() => toggleRow(rowKey)}>
+                          {rowOpen ? 'Hide details ▲' : 'Detailed ▼'}
+                        </button>
+                      )}
+                      {rowOpen && (
+                        <div className="history-detail">
+                          <div className="history-detail-stats">
+                            {first9 !== null && <span>First-9 avg: {first9.toFixed(1)}</span>}
+                            {worst !== null && (
+                              <span>
+                                Worst turn: {worst.total}
+                                {worst.bust ? ' (bust)' : ''}
+                              </span>
+                            )}
+                            {isCountdown && busts !== null && <span>Bust rate: {Math.round(busts * 100)}%</span>}
+                            {p.won && (
+                              <span>
+                                Won in {p.turns} turn{p.turns === 1 ? '' : 's'} / {dartsThrown(rounds)} dart
+                                {dartsThrown(rounds) === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </div>
+                          <ul className="turn-history">
+                            {rounds.map((t, k) => (
+                              <li key={k} className={t.bust ? 'bust' : ''}>
+                                <span className="turn-history-label">Turn {k + 1}</span>
+                                <span className="turn-history-darts">
+                                  {t.throws.map((dart, d) => (
+                                    <span key={d} className="turn-history-dart">
+                                      {formatThrow(dart)}
+                                    </span>
+                                  ))}
                                 </span>
-                              ))}
-                            </span>
-                            <span className="turn-history-total">{t.bust ? 'BUST' : t.total}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          </li>
-        ))}
+                                <span className="turn-history-total">{t.bust ? 'BUST' : t.total}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

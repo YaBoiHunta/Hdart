@@ -337,14 +337,14 @@ describe('game history', () => {
     expect(screen.getByText('301')).toBeInTheDocument()
     expect(screen.getByText('Hunter (won)')).toBeInTheDocument()
 
-    const roundsToggle = screen.getByRole('button', { name: /Rounds \(2\)/ })
+    const detailToggle = screen.getByRole('button', { name: 'Detailed ▼' })
     expect(screen.queryByText('T20')).not.toBeInTheDocument()
 
-    await user.click(roundsToggle)
+    await user.click(detailToggle)
     expect(screen.getAllByText('T20')).toHaveLength(5) // 5 triple-20s across both rounds
-    expect(screen.getByText('Hide rounds ▲')).toBeInTheDocument()
+    expect(screen.getByText('Hide details ▲')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Hide rounds ▲' }))
+    await user.click(screen.getByRole('button', { name: 'Hide details ▲' }))
     expect(screen.queryByText('T20')).not.toBeInTheDocument()
   })
 
