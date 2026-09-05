@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { loadHistory, appendGameResult, buildGameSummary, exportHistoryJson, importHistory } from './history'
 import type { GameHistoryEntry, GameState } from './types'
 
@@ -92,6 +92,88 @@ describe('loadHistory', () => {
     expect(history[0].players[0].turnHistory).toEqual([])
   })
 
+  it('drops an entry whose players array contains a non-object entry', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([makeEntry('good-entry'), { finishedAt: 'null-player', modeId: '501', modeLabel: '501', players: [null] }]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].finishedAt).toBe('good-entry')
+  })
+
+  it('drops an entry whose turnHistory array contains a non-object entry', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        makeEntry('good-entry'),
+        {
+          finishedAt: 'null-turn',
+          modeId: '501',
+          modeLabel: '501',
+          players: [{ name: 'Hunter', won: true, average: 42, turns: 1, turnHistory: [null] }],
+          highestRound: null,
+        },
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].finishedAt).toBe('good-entry')
+  })
+
+  it('drops an entry whose turnHistory throws array contains a non-object entry', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        makeEntry('good-entry'),
+        {
+          finishedAt: 'null-throw',
+          modeId: '501',
+          modeLabel: '501',
+          players: [
+            {
+              name: 'Hunter',
+              won: true,
+              average: 42,
+              turns: 1,
+              turnHistory: [{ throws: [null], total: 0, bust: false }],
+            },
+          ],
+          highestRound: null,
+        },
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].finishedAt).toBe('good-entry')
+  })
+
+  it('accepts a turn history throw with an OUT segment', () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        {
+          finishedAt: 'with-out-dart',
+          modeId: '501',
+          modeLabel: '501',
+          players: [
+            {
+              name: 'Hunter',
+              won: true,
+              average: 42,
+              turns: 1,
+              turnHistory: [{ throws: [{ segment: 'OUT', multiplier: 1, value: 0 }], total: 0, bust: false }],
+            },
+          ],
+          highestRound: null,
+        },
+      ]),
+    )
+    const history = loadHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0].players[0].turnHistory?.[0].throws[0].segment).toBe('OUT')
+  })
+
   it('drops an entry with a malformed turnHistory', () => {
     localStorage.setItem(
       'hdart:history',
@@ -176,6 +258,17 @@ describe('importHistory', () => {
     const history = loadHistory()
     expect(history).toHaveLength(100)
   })
+
+  it('reports zero added when storage write fails, rather than throwing', () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('quota exceeded')
+      })
+    const result = importHistory([makeEntry('a'), makeEntry('b')])
+    expect(result).toEqual({ added: 0, skipped: 2 })
+    setItemSpy.mockRestore()
+  })
 })
 
 describe('buildGameSummary', () => {
@@ -222,6 +315,28 @@ describe('buildGameSummary', () => {
 
     const summary = buildGameSummary(state)
     expect(summary.players[0].turnHistory).toEqual(turnHistory)
+  })
+
+  it('falls back to the raw modeId as the label when the mode cannot be resolved', () => {
+    const state = {
+      modeId: 'not-a-real-mode',
+      winnerId: 1,
+      players: [{ id: 1, name: 'Hunter', turnHistory: [] }],
+    } as unknown as GameState
+
+    const summary = buildGameSummary(state)
+    expect(summary.modeLabel).toBe('not-a-real-mode')
+  })
+
+  it('falls back to an empty label when there is no mode and no modeId', () => {
+    const state = {
+      modeId: null,
+      winnerId: 1,
+      players: [{ id: 1, name: 'Hunter', turnHistory: [] }],
+    } as unknown as GameState
+
+    const summary = buildGameSummary(state)
+    expect(summary.modeLabel).toBe('')
   })
 
   it('captures the highest scoring round across all players in a countdown game', () => {

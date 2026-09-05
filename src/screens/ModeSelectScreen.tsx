@@ -5,9 +5,10 @@ import type { Action } from '../game/types'
 interface ModeSelectScreenProps {
   dispatch: Dispatch<Action>
   onShowHistory: () => void
+  onOpenCardGame: () => void
 }
 
-export default function ModeSelectScreen({ dispatch, onShowHistory }: ModeSelectScreenProps) {
+export default function ModeSelectScreen({ dispatch, onShowHistory, onOpenCardGame }: ModeSelectScreenProps) {
   return (
     <div className="screen mode-select">
       <h1>Downtime Darts</h1>
@@ -22,6 +23,9 @@ export default function ModeSelectScreen({ dispatch, onShowHistory }: ModeSelect
             {mode.label}
           </button>
         ))}
+        <button className="mode-card" onClick={onOpenCardGame}>
+          Joker Draw (Beta)
+        </button>
       </div>
       <button className="history-entry-btn" onClick={onShowHistory}>
         History

@@ -72,6 +72,23 @@ describe('SoundProvider/useSound', () => {
     playSpy.mockRestore()
   })
 
+  it('swallows a rejected play() (missing asset or autoplay restriction) without throwing', async () => {
+    const user = userEvent.setup()
+    const playSpy = vi
+      .spyOn(window.HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new Error('not allowed'))
+    render(
+      <SoundProvider>
+        <Consumer />
+      </SoundProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'play' }))
+    expect(playSpy).toHaveBeenCalledTimes(1)
+
+    playSpy.mockRestore()
+  })
+
   it('throws when used outside a SoundProvider', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<Consumer />)).toThrow('useSound must be used within a SoundProvider')

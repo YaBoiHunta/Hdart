@@ -9,6 +9,7 @@ import ModeSelectScreen from './screens/ModeSelectScreen'
 import PlayerSetupScreen from './screens/PlayerSetupScreen'
 import GameBoardScreen from './screens/GameBoardScreen'
 import HistoryScreen from './screens/HistoryScreen'
+import CardGameScreen from './cardGame/CardGameScreen'
 import './App.css'
 
 const VALID_PHASES = new Set<string>(Object.values(PHASES))
@@ -47,6 +48,9 @@ function initState(): GameState {
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState, initState)
   const [historyOpen, setHistoryOpen] = useState(false)
+  // The card mode is a standalone prototype that never touches gameReducer's
+  // state/phases — it's just another top-level view swapped in here.
+  const [cardGameOpen, setCardGameOpen] = useState(false)
 
   useEffect(() => {
     savePersistedState(state)
@@ -71,10 +75,16 @@ export default function App() {
       <SoundToggle />
       {historyOpen ? (
         <HistoryScreen onBack={() => setHistoryOpen(false)} />
+      ) : cardGameOpen ? (
+        <CardGameScreen onExit={() => setCardGameOpen(false)} />
       ) : (
         <>
           {state.phase === PHASES.MODE_SELECT && (
-            <ModeSelectScreen dispatch={dispatch} onShowHistory={() => setHistoryOpen(true)} />
+            <ModeSelectScreen
+              dispatch={dispatch}
+              onShowHistory={() => setHistoryOpen(true)}
+              onOpenCardGame={() => setCardGameOpen(true)}
+            />
           )}
           {state.phase === PHASES.PLAYER_SETUP && (
             <PlayerSetupScreen state={state} dispatch={dispatch} />
