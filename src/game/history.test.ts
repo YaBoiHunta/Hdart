@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { loadHistory, appendGameResult, buildGameSummary, exportHistoryJson, importHistory } from './history'
+import { loadHistory, appendGameResult, buildGameSummary, exportHistoryJson, importHistory, getRecentPlayerNames } from './history'
 import type { GameHistoryEntry, GameState } from './types'
 
 beforeEach(() => {
@@ -379,5 +379,32 @@ describe('buildGameSummary', () => {
 
     const summary = buildGameSummary(state)
     expect(summary.highestRound).toBeNull()
+  })
+})
+
+describe('getRecentPlayerNames', () => {
+  function makeEntryWithPlayers(finishedAt: string, names: string[]): GameHistoryEntry {
+    return {
+      finishedAt,
+      modeId: '501',
+      modeLabel: '501',
+      players: names.map((name) => ({ name, won: false, average: null, turns: 0 })),
+      highestRound: null,
+    }
+  }
+
+  it('returns an empty array when there is no history', () => {
+    expect(getRecentPlayerNames()).toEqual([])
+  })
+
+  it('returns unique names, most-recently-played first', () => {
+    appendGameResult(makeEntryWithPlayers('first', ['Hunter', 'Alex']))
+    appendGameResult(makeEntryWithPlayers('second', ['Sam', 'Hunter']))
+    expect(getRecentPlayerNames()).toEqual(['Sam', 'Hunter', 'Alex'])
+  })
+
+  it('caps the result at the given limit', () => {
+    appendGameResult(makeEntryWithPlayers('game', ['A', 'B', 'C', 'D']))
+    expect(getRecentPlayerNames(2)).toEqual(['A', 'B'])
   })
 })
