@@ -123,6 +123,24 @@ export function appendGameResult(entry: GameHistoryEntry): void {
   }
 }
 
+const MAX_RECENT_PLAYERS = 20
+
+/**
+ * Unique player names from completed games, most-recently-played first.
+ * History is already stored newest-first (see appendGameResult/importHistory),
+ * so a single pass in stored order naturally yields recency order.
+ */
+export function getRecentPlayerNames(limit = MAX_RECENT_PLAYERS): string[] {
+  const seen = new Set<string>()
+  for (const entry of loadHistory()) {
+    for (const p of entry.players) {
+      if (!seen.has(p.name)) seen.add(p.name)
+      if (seen.size >= limit) return [...seen]
+    }
+  }
+  return [...seen]
+}
+
 export function exportHistoryJson(): string {
   return JSON.stringify(loadHistory(), null, 2)
 }

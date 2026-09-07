@@ -59,6 +59,39 @@ describe('mode select & player setup', () => {
     expect(screen.getByText('Mode: around-the-world')).toBeInTheDocument()
     expect(screen.getByText('Hunter')).toBeInTheDocument()
   })
+
+  it('lets you one-tap add a returning player from a recent-players chip', async () => {
+    localStorage.setItem(
+      'hdart:history',
+      JSON.stringify([
+        {
+          finishedAt: 'game-1',
+          modeId: '501',
+          modeLabel: '501',
+          players: [
+            { name: 'Hunter', won: true, average: 42, turns: 3 },
+            { name: 'Friend', won: false, average: 30, turns: 3 },
+          ],
+          highestRound: null,
+        },
+      ]),
+    )
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '501' }))
+    await user.click(screen.getByRole('button', { name: 'Hunter' }))
+    expect(screen.getByRole('button', { name: 'Start Game' })).toBeEnabled()
+    expect(screen.getByPlaceholderText('Player name')).toHaveValue('')
+  })
+
+  it('does not show a recent-players row when there is no game history', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '501' }))
+    expect(screen.queryByText('Recent:')).not.toBeInTheDocument()
+  })
 })
 
 describe('scoring buttons', () => {
