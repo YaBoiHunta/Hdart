@@ -2,9 +2,16 @@ import { describe, it, expect } from 'vitest'
 import { GAME_MODES, getModeById } from './modes'
 
 describe('GAME_MODES', () => {
-  it('includes 301 and 501 as countdown modes', () => {
+  it('includes 301, 501 and 501 (Speed) as countdown modes', () => {
     const countdownIds = GAME_MODES.filter((m) => m.family === 'countdown').map((m) => m.id)
-    expect(countdownIds).toEqual(['301', '501'])
+    expect(countdownIds).toEqual(['301', '501', '501-speed'])
+  })
+
+  it('makes 501 (Speed) a 501 with a 60 second turn limit', () => {
+    const mode = getModeById('501-speed')
+    expect(mode?.label).toBe('501 (Speed)')
+    expect(mode?.family === 'countdown' && mode.startingScore).toBe(501)
+    expect(mode?.family === 'countdown' && mode.turnTimeLimitSeconds).toBe(60)
   })
 
   it('includes Around the World as a progression mode ending on Bull', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import App from './App'
 
@@ -651,5 +651,42 @@ describe('number pad flash animation', () => {
 
     fireEvent.animationEnd(button)
     expect(button.className).not.toContain('flash')
+  })
+})
+
+describe('501 (Speed)', () => {
+  it('shows a 60s timer, turns red in the last 10s, and a timeout zeros the remaining darts', async () => {
+    vi.useFakeTimers()
+    try {
+      render(<App />)
+      fireEvent.click(screen.getByRole('button', { name: '501 (Speed)' }))
+      for (const name of ['Hunter', 'Friend']) {
+        fireEvent.change(screen.getByPlaceholderText('Player name'), { target: { value: name } })
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Start Game' }))
+
+      expect(screen.getByRole('timer')).toHaveTextContent('1:00')
+      expect(screen.getByRole('timer')).not.toHaveClass('urgent')
+
+      fireEvent.click(screen.getByRole('button', { name: '20' }))
+      expect(screen.getByText('481')).toBeInTheDocument()
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(51_000) })
+      expect(screen.getByRole('timer')).toHaveClass('urgent')
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+      expect(screen.getByText("Friend's turn")).toBeInTheDocument()
+      expect(screen.getByText('481')).toBeInTheDocument()
+      expect(screen.getByRole('timer')).toHaveTextContent('1:00')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not show a timer in regular 501', async () => {
+    const user = userEvent.setup()
+    await startGame(user)
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
   })
 })
