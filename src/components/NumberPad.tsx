@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, ReactNode } from 'react'
 import { useSound } from '../audio/SoundContext'
 import { shouldPlayImpressMe } from '../audio/soundTriggers'
 import { canUndoPreviousTurn } from '../game/gameReducer'
 import type { Action, GameState, Mode, Multiplier, ThrowSegment } from '../game/types'
+import { appendDigit, resolveSegment } from './keyboardEntry'
 
 interface NumberPadProps {
   state: GameState
@@ -48,6 +49,7 @@ export default function NumberPad({ state, dispatch, mode }: NumberPadProps) {
   const { activeMultiplier } = state
   const { playSound } = useSound()
   const [confirmingUndo, setConfirmingUndo] = useState(false)
+  const [pending, setPending] = useState('')
 
   const crossTurnUndo = canUndoPreviousTurn(state)
   const previousPlayerName = crossTurnUndo
@@ -81,8 +83,53 @@ export default function NumberPad({ state, dispatch, mode }: NumberPadProps) {
     dispatch({ type: 'THROW_DART', segment })
   }
 
+  // Desktop keyboard entry. The handler lives in a ref that's refreshed every
+  // render, so the single window listener below always sees the latest state
+  // without re-subscribing on every keystroke.
+  const isCountdown = mode.family === 'countdown'
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {})
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    const target = e.target
+    if (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+    ) {
+      return
+    }
+
+    if (/^\d$/.test(e.key)) {
+      setPending((p) => appendDigit(p, e.key, isCountdown))
+    } else if (e.key === 'Enter') {
+      const segment = resolveSegment(pending, isCountdown)
+      if (pending === '') return // let Enter behave normally (e.g. on a focused button)
+      e.preventDefault()
+      if (segment !== null) throwDart(segment)
+      setPending('')
+    } else if (e.key === 'Backspace') {
+      setPending((p) => p.slice(0, -1))
+    } else if (e.key === 'Escape') {
+      setPending('')
+    } else if (isCountdown && (e.key === 'd' || e.key === 'D')) {
+      toggleMultiplier(2)
+    } else if (isCountdown && (e.key === 't' || e.key === 'T')) {
+      toggleMultiplier(3)
+    }
+  }
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => keyHandlerRef.current(e)
+    window.addEventListener('keydown', listener)
+    return () => window.removeEventListener('keydown', listener)
+  }, [])
+
   return (
     <div className="number-pad">
+      {pending !== '' && (
+        <div className="pending-entry" aria-live="polite">
+          Enter: {pending}
+          {resolveSegment(pending, isCountdown) === null && ' (not a valid score)'}
+        </div>
+      )}
       {mode.family === 'countdown' && (
         <div className="multiplier-row">
           <button
