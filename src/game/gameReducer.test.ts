@@ -811,6 +811,119 @@ describe('around the world', () => {
   })
 })
 
+describe('501 (Speed) turn timer', () => {
+  function newSpeedGame(...names: string[]): CountdownGameState {
+    let state = selectMode(initialState, '501-speed')
+    for (const name of names) state = addPlayer(state, name)
+    return startGame(state) as CountdownGameState
+  }
+
+  it('scores like 501', () => {
+    const state = newSpeedGame('Hunter')
+    expect(state.players[0].score).toBe(501)
+  })
+
+  it('expiring with no darts thrown records a 0 turn and passes to the next player', () => {
+    let state = newSpeedGame('Hunter', 'Friend')
+    state = dispatch(state, { type: 'TIME_EXPIRED' })
+    expect(state.players[0].score).toBe(501)
+    expect(state.players[0].turnHistory).toHaveLength(1)
+    expect(state.players[0].turnHistory[0].total).toBe(0)
+    expect(state.players[0].turnHistory[0].bust).toBe(false)
+    expect(state.players[0].turnHistory[0].throws).toHaveLength(3)
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.currentTurn.throws).toHaveLength(0)
+    expect(turnAverage(state.players[0])).toBe(0)
+  })
+
+  it('expiring mid-turn keeps the darts already thrown and zeros the rest', () => {
+    let state = newSpeedGame('Hunter', 'Friend')
+    state = throwDart(state, 20)
+    state = dispatch(state, { type: 'TIME_EXPIRED' })
+    expect(state.players[0].score).toBe(481)
+    expect(state.players[0].turnHistory[0].total).toBe(20)
+    expect(state.players[0].turnHistory[0].throws.map((t) => t.value)).toEqual([20, 0, 0])
+    expect(state.currentPlayerIndex).toBe(1)
+  })
+
+  it('can be undone back into like any completed turn', () => {
+    let state = newSpeedGame('Hunter', 'Friend')
+    state = throwDart(state, 20)
+    state = dispatch(state, { type: 'TIME_EXPIRED' })
+    state = undo(state)
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].turnHistory).toHaveLength(0)
+    expect(state.currentTurn.throws).toHaveLength(3)
+  })
+
+  it('does nothing in modes without a turn limit', () => {
+    const state = newGameAt501WithPlayers('Hunter', 'Friend')
+    expect(dispatch(state, { type: 'TIME_EXPIRED' })).toBe(state)
+  })
+
+  it('does nothing once the game is over', () => {
+    let state = newSpeedGame('Hunter')
+    state = { ...state, players: [{ ...state.players[0], score: 0 }], finishOrder: [state.players[0].id], winnerId: state.players[0].id }
+    expect(dispatch(state, { type: 'TIME_EXPIRED' })).toBe(state)
+  })
+})
+
+describe('501 (Speed) turn timer', () => {
+  function newSpeedGame(...names: string[]): CountdownGameState {
+    let state = selectMode(initialState, '501-speed')
+    for (const name of names) state = addPlayer(state, name)
+    return startGame(state) as CountdownGameState
+  }
+
+  it('scores like 501', () => {
+    const state = newSpeedGame('Hunter')
+    expect(state.players[0].score).toBe(501)
+  })
+
+  it('expiring with no darts thrown records a 0 turn and passes to the next player', () => {
+    let state = newSpeedGame('Hunter', 'Friend')
+    state = dispatch(state, { type: 'TIME_EXPIRED' })
+    expect(state.players[0].score).toBe(501)
+    expect(state.players[0].turnHistory).toHaveLength(1)
+    expect(state.players[0].turnHistory[0].total).toBe(0)
+    expect(state.players[0].turnHistory[0].bust).toBe(false)
+    expect(state.players[0].turnHistory[0].throws).toHaveLength(3)
+    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.currentTurn.throws).toHaveLength(0)
+    expect(turnAverage(state.players[0])).toBe(0)
+  })
+
+  it('expiring mid-turn keeps the darts already thrown and zeros the rest', () => {
+    let state = newSpeedGame('Hunter', 'Friend')
+    state = throwDart(state, 20)
+    state = dispatch(state, { type: 'TIME_EXPIRED' })
+    expect(state.players[0].score).toBe(481)
+    expect(state.players[0].turnHistory[0].total).toBe(20)
+    expect(state.players[0].turnHistory[0].throws.map((t) => t.value)).toEqual([20, 0, 0])
+    expect(state.currentPlayerIndex).toBe(1)
+  })
+
+  it('can be undone back into like any completed turn', () => {
+    let state = newSpeedGame('Hunter', 'Friend')
+    state = throwDart(state, 20)
+    state = dispatch(state, { type: 'TIME_EXPIRED' })
+    state = undo(state)
+    expect(state.currentPlayerIndex).toBe(0)
+    expect(state.players[0].turnHistory).toHaveLength(0)
+  })
+
+  it('does nothing in modes without a turn limit', () => {
+    const state = newGameAt501WithPlayers('Hunter', 'Friend')
+    expect(dispatch(state, { type: 'TIME_EXPIRED' })).toBe(state)
+  })
+
+  it('does nothing once the game is over', () => {
+    const state = newSpeedGame('Hunter')
+    const done = { ...state, finishOrder: [state.players[0].id], winnerId: state.players[0].id }
+    expect(dispatch(done, { type: 'TIME_EXPIRED' })).toBe(done)
+  })
+})
+
 describe('unknown action', () => {
   it('returns state unchanged for an action type the reducer does not recognize', () => {
     const state = newGameAt501WithPlayers('Hunter')

@@ -369,6 +369,18 @@
   animation: turn-banner-enter 320ms ease-out;
 }
 
+.turn-timer {
+  text-align: center;
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+}
+
+.turn-timer.urgent {
+  color: #ff4d4d;
+}
+
 .finish-banner {
   text-align: center;
   font-size: 13px;

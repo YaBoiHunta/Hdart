@@ -1,6 +1,7 @@
 import { useState, type Dispatch } from 'react'
 import PlayerCard from '../components/PlayerCard'
 import NumberPad from '../components/NumberPad'
+import TurnTimer from '../components/TurnTimer'
 import { getModeById } from '../game/modes'
 import { getStandings, isGameOver, placementOf, turnAverage } from '../game/gameReducer'
 import { ordinal } from '../game/ordinal'
@@ -75,6 +76,14 @@ export default function GameBoardScreen({ state, dispatch }: GameBoardScreenProp
       )}
 
       <div key={turnKey} className="turn-banner">{activePlayer.name}'s turn</div>
+
+      {mode.family === 'countdown' && mode.turnTimeLimitSeconds && (
+        <TurnTimer
+          seconds={mode.turnTimeLimitSeconds}
+          resetKey={`${state.currentPlayerIndex}-${state.turnOrderLog.length}`}
+          onExpire={() => dispatch({ type: 'TIME_EXPIRED' })}
+        />
+      )}
 
       <div className="player-list-board">
         {state.players.map((p, i) => (

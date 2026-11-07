@@ -59,6 +59,9 @@ interface ModeBase {
 export interface CountdownMode extends ModeBase {
   family: 'countdown'
   startingScore: number
+  // Seconds each player gets per turn. When it runs out, the darts not yet
+  // thrown score 0 and the turn passes on (see TIME_EXPIRED).
+  turnTimeLimitSeconds?: number
 }
 
 export interface ProgressionMode extends ModeBase {
@@ -98,6 +101,7 @@ export type Action =
   | { type: 'SET_MULTIPLIER'; multiplier: Multiplier }
   | { type: 'THROW_DART'; segment: ThrowSegment }
   | { type: 'UNDO' }
+  | { type: 'TIME_EXPIRED' }
   | { type: 'NEW_GAME' }
   | { type: 'REMATCH' }
   | { type: 'MARK_HISTORY_RECORDED' }

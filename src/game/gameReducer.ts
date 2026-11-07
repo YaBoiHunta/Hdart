@@ -159,6 +159,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
       }
     }
 
+    case 'TIME_EXPIRED':
+      return expireTurn(state)
+
     case 'NEW_GAME':
       return { ...initialState, phase: PHASES.MODE_SELECT }
 
@@ -186,6 +189,37 @@ export function gameReducer(state: GameState, action: Action): GameState {
     default:
       return state
   }
+}
+
+// Speed modes: the turn clock ran out. Darts already thrown keep their points;
+// the rest of the turn's 3 darts are recorded as scoreless (OUT) throws, and
+// the turn is logged as a normal completed turn before play passes on.
+function expireTurn(state: GameState): GameState {
+  if (isGameOver(state)) return state
+  const mode = getModeById(state.modeId)
+  if (!mode || mode.family !== 'countdown' || !mode.turnTimeLimitSeconds) return state
+  const playerIndex = state.currentPlayerIndex
+  const player = state.players[playerIndex]
+  if (!player || !isCountdownPlayer(player)) return state
+
+  const throws = [...state.currentTurn.throws]
+  while (throws.length < 3) throws.push({ segment: 'OUT', multiplier: 1, value: 0 })
+
+  const players = [...state.players]
+  players[playerIndex] = {
+    ...player,
+    turnHistory: [
+      ...player.turnHistory,
+      {
+        throws,
+        total: turnPoints(throws),
+        bust: false,
+        startScore: state.currentTurn.startScore,
+        startTargetIndex: state.currentTurn.startTargetIndex,
+      },
+    ],
+  }
+  return advanceTurn(state, players)
 }
 
 // Reaches back into the previous player's just-completed turn, undoing it as

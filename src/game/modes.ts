@@ -6,6 +6,13 @@ export const GAME_MODES: Mode[] = [
   { id: '301', label: '301', family: 'countdown', startingScore: 301 },
   { id: '501', label: '501', family: 'countdown', startingScore: 501 },
   {
+    id: '501-speed',
+    label: '501 (Speed)',
+    family: 'countdown',
+    startingScore: 501,
+    turnTimeLimitSeconds: 60,
+  },
+  {
     id: 'around-the-world',
     label: 'Around the World',
     family: 'progression',
